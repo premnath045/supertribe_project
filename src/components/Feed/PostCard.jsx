@@ -1,18 +1,30 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   FiHeart, 
   FiMessageCircle, 
   FiShare, 
   FiBookmark, 
   FiMoreHorizontal,
-  FiLock 
+  FiLock,
+  FiVolume2,
+  FiVolumeX,
+  FiPlay,
+  FiPause
 } from 'react-icons/fi'
 import { formatDistanceToNow } from 'date-fns'
-import MediaCarousel from '../Media/MediaCarousel'
 
-function PostCard({ post, onLike, onSave, onComment, onShare, onClick }) {
+function PostCard({ post, onLike, onSave, onComment, onShare, onClick, isInView = true }) {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
+  const [isMuted, setIsMuted] = useState(true)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [showControls, setShowControls] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [isDoubleTabbed, setIsDoubleTabbed] = useState(false)
+  const videoRef = useRef(null)
+  const progressInterval = useRef(null)
+  const hideControlsTimeout = useRef(null)
 
   // Prepare media array: preview video (if exists) first, then media_urls
   let media = []
@@ -20,17 +32,16 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick }) {
     media.push({
       type: 'video',
       url: post.preview_video_url,
-      thumbnail: '', // Optionally add thumbnail if you have it
+      thumbnail: '', 
       isPreview: true,
       description: "Preview video"
     })
   }
   if (Array.isArray(post.media_urls)) {
     post.media_urls.forEach((url) => {
-      // Guess type by extension
       const ext = url.split('.').pop().toLowerCase()
       media.push({
-        type: ext === 'mp4' || ext === 'webm' ? 'video' : 'image',
+        type: ext === 'mp4' || ext === 'webm' || ext === 'mov' ? 'video' : 'image',
         url,
         thumbnail: url, 
         isPreview: false,
@@ -39,7 +50,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick }) {
     })
   }
   
-  // If no media, create an empty array to avoid errors
+  // Fallback placeholder
   if (media.length === 0) {
     media = [{
       type: 'image',
@@ -50,134 +61,373 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick }) {
     }]
   }
 
-  // Determine if current media is preview (should not be blurred/locked)
   const isCurrentPreview = media[currentMediaIndex]?.isPreview
+  const currentMedia = media[currentMediaIndex]
+  const isVideo = currentMedia?.type === 'video'
+
+  // Auto-play video when in view
+  useEffect(() => {
+    if (videoRef.current && isVideo) {
+      if (isInView) {
+        videoRef.current.play().then(() => {
+          setIsPlaying(true)
+        }).catch(err => {
+          console.log('Auto-play prevented:', err)
+        })
+      } else {
+        videoRef.current.pause()
+        setIsPlaying(false)
+      }
+    }
+  }, [isInView, currentMediaIndex, isVideo])
+
+  // Progress tracking
+  useEffect(() => {
+    if (isPlaying && videoRef.current) {
+      progressInterval.current = setInterval(() => {
+        const video = videoRef.current
+        if (video) {
+          setProgress((video.currentTime / video.duration) * 100)
+        }
+      }, 100)
+    } else {
+      clearInterval(progressInterval.current)
+    }
+
+    return () => clearInterval(progressInterval.current)
+  }, [isPlaying])
+
+  // Auto-hide controls
+  useEffect(() => {
+    if (showControls) {
+      clearTimeout(hideControlsTimeout.current)
+      hideControlsTimeout.current = setTimeout(() => {
+        setShowControls(false)
+      }, 3000)
+    }
+    return () => clearTimeout(hideControlsTimeout.current)
+  }, [showControls])
+
+  const togglePlayPause = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause()
+        setIsPlaying(false)
+      } else {
+        videoRef.current.play()
+        setIsPlaying(true)
+      }
+    }
+  }
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted
+      setIsMuted(!isMuted)
+    }
+  }
+
+  const handleVideoClick = (e) => {
+    e.stopPropagation()
+    setShowControls(true)
+  }
+
+  const handleDoubleClick = (e) => {
+    e.stopPropagation()
+    setIsDoubleTabbed(true)
+    onLike()
+    setTimeout(() => setIsDoubleTabbed(false), 1000)
+  }
+
+  const handleVideoLoad = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration)
+      videoRef.current.muted = isMuted
+    }
+  }
+
+  const nextMedia = () => {
+    if (currentMediaIndex < media.length - 1) {
+      setCurrentMediaIndex(prev => prev + 1)
+    }
+  }
+
+  const prevMedia = () => {
+    if (currentMediaIndex > 0) {
+      setCurrentMediaIndex(prev => prev - 1)
+    }
+  }
 
   return (
     <motion.article 
-      className="bg-white post-shadow border border-gray-100 overflow-hidden"
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.2 }}
+      className="bg-white border border-gray-100 overflow-hidden"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4">
+      <div className="flex items-center justify-between p-3">
         <div className="flex items-center space-x-3">
-          <img
-            src={post.user?.avatar || post.profiles?.avatar_url || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=40'}
-            alt={post.user?.displayName || post.profiles?.display_name || 'User'}
-            className="w-10 h-10 rounded-full object-cover"
-          />
+          <div className="relative">
+            <img
+              src={post.user?.avatar || post.profiles?.avatar_url || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=40'}
+              alt={post.user?.displayName || post.profiles?.display_name || 'User'}
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-gradient-to-r from-purple-500 to-pink-500 p-0.5"
+            />
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 -z-10"></div>
+          </div>
           <div>
             <div className="flex items-center space-x-1">
-              <h3 className="font-semibold text-gray-900">{post.user?.displayName || post.profiles?.display_name || post.user?.username || post.profiles?.username || 'Unknown'}</h3>
+              <h3 className="font-semibold text-sm text-gray-900">
+                {post.user?.displayName || post.profiles?.display_name || post.user?.username || post.profiles?.username || 'Unknown'}
+              </h3>
               {(post.user?.isVerified || post.profiles?.is_verified) && (
-                <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                <div className="w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
                   <span className="text-white text-xs">✓</span>
                 </div>
               )}
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs text-gray-500">
               {formatDistanceToNow(new Date(post.createdAt || post.created_at), { addSuffix: true })}
             </p>
           </div>
         </div>
         
-        <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <FiMoreHorizontal className="text-gray-600" />
+        <button className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+          <FiMoreHorizontal className="text-gray-600 w-5 h-5" />
         </button>
       </div>
 
-      {/* Content */}
-      {post.content && (
-        <div className="px-4 pb-3">
-          <p className="text-gray-900 leading-relaxed">{post.content}</p>
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {post.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="text-primary-500 text-sm hover:underline cursor-pointer"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Media */}
-      <div className="relative">
-        {/* Blur and unlock only if premium, not preview, and not unlocked */}
+      {/* Media Container */}
+      <div className="relative bg-black aspect-square overflow-hidden">
+        {/* Premium Content Overlay */}
         {post.is_premium && !isCurrentPreview && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-10 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center">
             <div className="text-center text-white">
-              <FiLock className="text-3xl mx-auto mb-2" />
-              <p className="font-semibold">Premium Content</p>
-              <p className="text-sm opacity-90">${post.price}</p>
-              <button className="mt-3 bg-white text-black px-4 py-2 rounded-full font-medium hover:bg-gray-100 transition-colors">
+              <FiLock className="text-4xl mx-auto mb-3" />
+              <p className="font-semibold text-lg">Premium Content</p>
+              <p className="text-sm opacity-90 mb-4">${post.price}</p>
+              <button className="bg-white text-black px-6 py-2 rounded-full font-medium hover:bg-gray-100 transition-colors">
                 Unlock
               </button>
             </div>
           </div>
         )}
 
-        {/* Only allow click if not premium or is preview */}
-        {/* onClick will only trigger if not premium or is preview */}
-        <MediaCarousel
-          media={media}
-          currentIndex={currentMediaIndex}
-          onIndexChange={setCurrentMediaIndex}
-          onClick={() => (!post.is_premium || isCurrentPreview) && onClick()}
-        />
+        {/* Media Navigation Dots */}
+        {media.length > 1 && (
+          <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-10 flex space-x-1">
+            {media.map((_, index) => (
+              <div
+                key={index}
+                className={`h-0.5 rounded-full transition-all duration-300 ${
+                  index === currentMediaIndex 
+                    ? 'bg-white w-8' 
+                    : 'bg-white/50 w-6'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Video Progress Bar */}
+        {isVideo && isPlaying && (
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 z-10">
+            <div 
+              className="h-full bg-white transition-all duration-100"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
+
+        {/* Media Content */}
+        {isVideo ? (
+          <div className="relative w-full h-full">
+            <video
+              ref={videoRef}
+              src={currentMedia.url}
+              className="w-full h-full object-cover"
+              muted={isMuted}
+              loop
+              playsInline
+              onLoadedMetadata={handleVideoLoad}
+              onEnded={() => setIsPlaying(false)}
+              onClick={handleVideoClick}
+              onDoubleClick={handleDoubleClick}
+            />
+            
+            {/* Video Controls Overlay */}
+            <AnimatePresence>
+              {showControls && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-black/20 flex items-center justify-center z-10"
+                >
+                  <div className="flex items-center space-x-4">
+                    <motion.button
+                      whileTap={{ scale: 0.9 }}
+                      onClick={togglePlayPause}
+                      className="w-12 h-12 bg-black/50 rounded-full flex items-center justify-center backdrop-blur-sm"
+                    >
+                      {isPlaying ? (
+                        <FiPause className="text-white text-xl ml-0.5" />
+                      ) : (
+                        <FiPlay className="text-white text-xl ml-1" />
+                      )}
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Mute/Unmute Button */}
+            <button
+              onClick={toggleMute}
+              className="absolute top-3 right-3 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center backdrop-blur-sm z-10"
+            >
+              {isMuted ? (
+                <FiVolumeX className="text-white text-sm" />
+              ) : (
+                <FiVolume2 className="text-white text-sm" />
+              )}
+            </button>
+
+            {/* Double-tap heart animation */}
+            <AnimatePresence>
+              {isDoubleTabbed && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1.2, opacity: 1 }}
+                  exit={{ scale: 1.5, opacity: 0 }}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+                >
+                  <FiHeart className="text-red-500 text-8xl fill-current drop-shadow-lg" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <img
+            src={currentMedia.url}
+            alt={currentMedia.description}
+            className="w-full h-full object-cover"
+            onDoubleClick={handleDoubleClick}
+          />
+        )}
+
+        {/* Navigation Arrows */}
+        {media.length > 1 && (
+          <>
+            {currentMediaIndex > 0 && (
+              <button
+                onClick={prevMedia}
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center backdrop-blur-sm z-10"
+              >
+                <span className="text-white text-sm">‹</span>
+              </button>
+            )}
+            {currentMediaIndex < media.length - 1 && (
+              <button
+                onClick={nextMedia}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center backdrop-blur-sm z-10"
+              >
+                <span className="text-white text-sm">›</span>
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {/* Actions */}
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="p-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-4">
             <motion.button
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.8 }}
               onClick={onLike}
-              className={`flex items-center space-x-1 ${
-                post.isLiked ? 'text-red-500' : 'text-gray-700'
+              className={`${
+                post.isLiked ? 'text-red-500' : 'text-gray-900'
               } hover:text-red-500 transition-colors`}
             >
               <FiHeart 
-                className={`text-xl ${post.isLiked ? 'fill-current animate-heart' : ''}`} 
+                className={`text-2xl ${post.isLiked ? 'fill-current' : ''}`} 
               />
-              <span className="font-medium">{post.likeCount ?? post.like_count ?? 0}</span>
             </motion.button>
             
             <motion.button
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.8 }}
               onClick={onComment}
-              className="flex items-center space-x-1 text-gray-700 hover:text-primary-500 transition-colors"
+              className="text-gray-900 hover:text-gray-600 transition-colors"
             >
-              <FiMessageCircle className="text-xl" />
-              <span className="font-medium">{post.commentCount ?? post.comment_count ?? 0}</span>
+              <FiMessageCircle className="text-2xl" />
             </motion.button>
             
             <motion.button
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.8 }}
               onClick={onShare}
-              className="flex items-center space-x-1 text-gray-700 hover:text-primary-500 transition-colors"
+              className="text-gray-900 hover:text-gray-600 transition-colors"
             >
-              <FiShare className="text-xl" />
-              <span className="font-medium">{post.shareCount ?? post.share_count ?? 0}</span>
+              <FiShare className="text-2xl" />
             </motion.button>
           </div>
           
           <motion.button
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: 0.8 }}
             onClick={onSave}
             className={`${
-              post.isSaved ? 'text-primary-500' : 'text-gray-700'
-            } hover:text-primary-500 transition-colors`}
+              post.isSaved ? 'text-gray-900 fill-current' : 'text-gray-900'
+            } hover:text-gray-600 transition-colors`}
           >
-            <FiBookmark className={`text-xl ${post.isSaved ? 'fill-current' : ''}`} />
+            <FiBookmark className={`text-2xl ${post.isSaved ? 'fill-current' : ''}`} />
           </motion.button>
         </div>
+
+        {/* Like count */}
+        {(post.likeCount ?? post.like_count ?? 0) > 0 && (
+          <p className="font-semibold text-sm text-gray-900 mb-2">
+            {(post.likeCount ?? post.like_count).toLocaleString()} likes
+          </p>
+        )}
+
+        {/* Content */}
+        {post.content && (
+          <div className="mb-2">
+            <p className="text-sm text-gray-900">
+              <span className="font-semibold mr-2">
+                {post.user?.displayName || post.profiles?.display_name || post.user?.username || 'Unknown'}
+              </span>
+              {post.content}
+            </p>
+            {post.tags && post.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {post.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-primary-500 text-sm hover:underline cursor-pointer"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* View comments */}
+        {(post.commentCount ?? post.comment_count ?? 0) > 0 && (
+          <button 
+            onClick={onComment}
+            className="text-sm text-gray-500 hover:text-gray-700 transition-colors mb-2 block"
+          >
+            View all {(post.commentCount ?? post.comment_count)} comments
+          </button>
+        )}
+
+        <p className="text-xs text-gray-400 uppercase tracking-wide">
+          {formatDistanceToNow(new Date(post.createdAt || post.created_at), { addSuffix: true })}
+        </p>
       </div>
     </motion.article>
   )
