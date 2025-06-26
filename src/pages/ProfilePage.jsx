@@ -15,6 +15,7 @@ import Bio from '../components/Profile/Bio'
 import ContentTabs from '../components/Profile/Content/ContentTabs'
 import ContentGrid from '../components/Profile/Content/ContentGrid'
 import ProfileActions from '../components/Profile/Actions/ProfileActions'
+import FollowersModal from '../components/Profile/FollowersModal'
 
 // Import hook for story highlights
 import useStoryHighlights from '../hooks/useStoryHighlights'
@@ -35,6 +36,8 @@ function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('posts')
+  const [showFollowersModal, setShowFollowersModal] = useState(false)
+  const [followersModalTab, setFollowersModalTab] = useState('followers')
   
   // Story highlights state
   const [showHighlightModal, setShowHighlightModal] = useState(false)
@@ -334,6 +337,17 @@ function ProfilePage() {
     alert(`Viewing highlight: ${highlight.title}`)
   }
 
+  // Handlers for follower/following modal
+  const handleOpenFollowers = () => {
+    setFollowersModalTab('followers')
+    setShowFollowersModal(true)
+  }
+
+  const handleOpenFollowing = () => {
+    setFollowersModalTab('following')
+    setShowFollowersModal(true)
+  }
+
   // Loading state
   if (loading || (followLoading && !isOwnProfile)) {
     return (
@@ -402,6 +416,8 @@ function ProfilePage() {
               editErrors={editErrors}
               handleEditInputChange={handleEditInputChange}
               stats={profileStats}
+              onOpenFollowers={handleOpenFollowers}
+              onOpenFollowing={handleOpenFollowing}
             />
             
             {/* Bio */}
@@ -565,6 +581,16 @@ function ProfilePage() {
         currentHighlights={highlights}
         onSave={handleSaveHighlight}
         isLoading={savingHighlights}
+      />
+      
+      {/* Followers/Following Modal */}
+      <FollowersModal
+        isOpen={showFollowersModal}
+        onClose={() => setShowFollowersModal(false)}
+        profileId={profileData?.id}
+        initialTab={followersModalTab}
+        followerCount={followerCount}
+        followingCount={followingCount}
       />
     </motion.div>
   )

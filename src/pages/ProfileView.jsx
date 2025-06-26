@@ -13,6 +13,7 @@ import StoryHighlights from '../components/Profile/Stories/StoryHighlights'
 import Bio from '../components/Profile/Bio'
 import ViewProfileActions from '../components/Profile/Actions/ViewProfileActions'
 import ProfileTabView from '../components/Profile/Content/ProfileTabView'
+import FollowersModal from '../components/Profile/FollowersModal'
 
 // Import hook for story highlights
 import useStoryHighlights from '../hooks/useStoryHighlights'
@@ -28,6 +29,8 @@ function ProfileView() {
   const [loading, setLoading] = useState(true)
   const [postsLoading, setPostsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showFollowersModal, setShowFollowersModal] = useState(false)
+  const [followersModalTab, setFollowersModalTab] = useState('followers')
   
   // Get story highlights data (view-only)
   const { 
@@ -149,6 +152,17 @@ function ProfileView() {
     await toggleFollow()
   }
   
+  // Handlers for follower/following modal
+  const handleOpenFollowers = () => {
+    setFollowersModalTab('followers')
+    setShowFollowersModal(true)
+  }
+
+  const handleOpenFollowing = () => {
+    setFollowersModalTab('following')
+    setShowFollowersModal(true)
+  }
+  
   // Handle view highlight
   const handleViewHighlight = (highlight) => {
     // Here you would show a story viewer modal with the highlight stories
@@ -213,6 +227,7 @@ function ProfileView() {
   }
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -242,6 +257,8 @@ function ProfileView() {
               isOwnProfile={false}
               isEditing={false}
               stats={profileStats}
+              onOpenFollowers={handleOpenFollowers}
+              onOpenFollowing={handleOpenFollowing}
             />
             
             {/* Bio */}
@@ -278,6 +295,17 @@ function ProfileView() {
         />
       </div>
     </motion.div>
+    
+    {/* Followers/Following Modal */}
+    <FollowersModal
+      isOpen={showFollowersModal}
+      onClose={() => setShowFollowersModal(false)}
+      profileId={profileData?.id}
+      initialTab={followersModalTab}
+      followerCount={followerCount}
+      followingCount={followingCount}
+    />
+  </>
   )
 }
 

@@ -8,7 +8,9 @@ function ProfileHeader({
   editForm, 
   editErrors, 
   handleEditInputChange,
-  stats
+  stats,
+  onOpenFollowers,
+  onOpenFollowing
 }) {
   return (
     <div className="flex items-center space-x-6 mb-6">
@@ -74,11 +76,11 @@ function ProfileHeader({
             <div className="font-bold text-gray-900">{stats.postCount}</div>
             <div className="text-gray-600">Posts</div>
           </div>
-          <div className="text-center">
+          <div className="text-center cursor-pointer" onClick={onOpenFollowers}>
             <div className="font-bold text-gray-900">{stats.followerCount}</div>
             <div className="text-gray-600">Followers</div>
           </div>
-          <div className="text-center">
+          <div className="text-center cursor-pointer" onClick={onOpenFollowing}>
             <div className="font-bold text-gray-900">{stats.followingCount}</div>
             <div className="text-gray-600">Following</div>
           </div>
