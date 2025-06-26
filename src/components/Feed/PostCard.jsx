@@ -394,7 +394,10 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, isInView 
         {/* Content */}
         {post.content && (
           <div className="mb-2">
-            <p className="text-sm text-gray-900">
+            <p
+              className="text-sm text-gray-900 cursor-pointer hover:underline"
+              onClick={onClick}
+            >
               <span className="font-semibold mr-2">
                 {post.user?.displayName || post.profiles?.display_name || post.user?.username || 'Unknown'}
               </span>
