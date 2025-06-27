@@ -10,11 +10,12 @@ import {
   FiX
 } from 'react-icons/fi'
 
-// Mock constants for demo
+// Mobile-friendly camera constraints
 const CAMERA_CONSTRAINTS = {
   PHOTO: {
-    width: { ideal: 1080 },
-    height: { ideal: 1920 }
+    width: { ideal: 720, max: 1280 },
+    height: { ideal: 1280, max: 1920 },
+    aspectRatio: { ideal: 9/16 }
   }
 }
 
@@ -205,7 +206,7 @@ function PhotoMode({ onCapture, onPreview }) {
           />
           
           {/* Top Bar - Simplified for modal context */}
-          <div className="absolute top-4 left-0 right-0 z-10">
+          <div className="absolute top-40 left-0 right-0 z-10">
             <div className="flex items-center justify-end px-4">
               <motion.button
                 whileTap={{ scale: 0.9 }}
@@ -218,7 +219,7 @@ function PhotoMode({ onCapture, onPreview }) {
           </div>
           
           {/* Bottom Actions - Adjusted for modal context */}
-          <div className="absolute bottom-4 left-0 right-0">
+          <div className="absolute bottom-40 left-0 right-0">
             <div className="flex items-center justify-center space-x-12">
               <motion.button
                 whileTap={{ scale: 0.9 }}
