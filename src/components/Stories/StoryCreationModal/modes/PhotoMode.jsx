@@ -13,9 +13,9 @@ import {
 // Mobile-friendly camera constraints
 const CAMERA_CONSTRAINTS = {
   PHOTO: {
-    width: { ideal: 720, max: 1280 },
-    height: { ideal: 1280, max: 1920 },
-    aspectRatio: { ideal: 9/16 }
+    width: { ideal: 1280, max: 1920 },
+    height: { ideal: 720, max: 1080 }
+    // aspectRatio removed for better compatibility
   }
 }
 
