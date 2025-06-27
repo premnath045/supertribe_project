@@ -107,7 +107,6 @@ function TextMode({ storyData, onUpdate, onPreview }) {
       <div 
         className="h-full flex items-center justify-center p-8 cursor-pointer transition-all duration-300"
         style={getBackgroundStyle()}
-        onClick={() => setShowControls(!showControls)}
       >
         <textarea
           ref={textareaRef}
@@ -120,7 +119,6 @@ function TextMode({ storyData, onUpdate, onPreview }) {
             fontSize: `${textStyle.size}px`,
             textAlign: textStyle.align,
             lineHeight: '1.3',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
           }}
           rows={6}
         />
@@ -138,6 +136,22 @@ function TextMode({ storyData, onUpdate, onPreview }) {
             className="absolute top-6 right-6 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm z-50 hover:shadow-xl transition-all duration-200"
           >
             <FiCheck className="text-black text-xl" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Button BELOW Done Button */}
+      <AnimatePresence>
+        {!showControls && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: -20 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setShowControls(true)}
+            className="absolute top-24 right-6 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm z-50 hover:shadow-xl transition-all duration-200"
+          >
+            <FiType className="text-black text-xl" />
           </motion.button>
         )}
       </AnimatePresence>
