@@ -1,3 +1,5 @@
+// Constants for Story Creation Modal
+
 export const STORY_MODES = {
   PHOTO: 'photo',
   VIDEO: 'video',
