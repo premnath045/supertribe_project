@@ -14,7 +14,7 @@ import {
 } from 'react-icons/fi'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import LoadingSpinner from '../UI/LoadingSpinner'
+import LoadingSpinner from '../components/UI/LoadingSpinner'
 
 function SettingsPage() {
   const navigate = useNavigate()
