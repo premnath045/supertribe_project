@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubmitPollVote } from './useTanstackQuery'
-import { pollsApi } from '../lib/queryClient'
+import { pollsApi, queryKeys } from '../lib/queryClient'
+import { supabase } from '../lib/supabase'
 
 export const usePollVotes = (postId) => {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [userVote, setUserVote] = useState(null)
   const [voteCount, setVoteCount] = useState({})
   const [totalVotes, setTotalVotes] = useState(0)
@@ -98,8 +101,7 @@ export const usePollVotes = (postId) => {
   useEffect(() => {
     if (!postId) return
     
-    // Initial fetch without debounce
-    fetchVotes(true)
+    const subscription = supabase
       .channel(`poll-votes-${postId}`)
       .on('postgres_changes', {
         event: '*',
@@ -114,7 +116,8 @@ export const usePollVotes = (postId) => {
         
         // Set a new timeout to debounce multiple rapid changes
         debounceTimeoutRef.current = setTimeout(() => {
-          // Refetch will be handled by the query invalidation
+          // Invalidate and refetch poll data
+          queryClient.invalidateQueries({ queryKey: queryKeys.posts.poll(postId) })
         }, 300) // 300ms debounce delay
       })
       .subscribe()
@@ -124,9 +127,9 @@ export const usePollVotes = (postId) => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current)
       }
-      // Clean up subscription
+      subscription.unsubscribe()
     }
-  }, [postId])
+  }, [postId, queryClient])
 
   return {
     userVote,

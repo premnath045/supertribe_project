@@ -54,13 +54,13 @@ export const useConversations = () => {
             .from('conversation_participants')
             .select(`
               user_id,
-             user_id(profiles(
+              profiles!user_id(
                 username,
                 display_name,
                 avatar_url,
                 is_verified,
                 user_type
-             ))
+              )
             `)
             .eq('conversation_id', conversation.id)
             .eq('is_active', true)
@@ -75,8 +75,8 @@ export const useConversations = () => {
               message_type,
               sender_id,
               created_at,
-              sender:sender_id (
-                profiles (display_name)
+              profiles!sender_id (
+                display_name
               )
             `)
             .eq('conversation_id', conversation.id)
@@ -114,7 +114,7 @@ export const useConversations = () => {
               content: lastMessage.content,
               messageType: lastMessage.message_type,
               senderId: lastMessage.sender_id,
-              senderName: lastMessage.sender?.profiles?.display_name || 'Unknown',
+              senderName: lastMessage.profiles?.display_name || 'Unknown',
               createdAt: new Date(lastMessage.created_at),
               isFromCurrentUser: lastMessage.sender_id === user.id
             } : null,
