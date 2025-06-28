@@ -1,12 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { FiX, FiUser, FiLock, FiBell, FiCreditCard, FiStar, FiHelpCircle, FiLogOut, FiSettings } from 'react-icons/fi'
+import { FiX, FiUser, FiLock, FiBell, FiCreditCard, FiStar, FiHelpCircle, FiLogOut, FiSettings, FiSliders } from 'react-icons/fi'
 import { useAuth } from '../../contexts/AuthContext'
 
 const settingsSections = [
-  { icon: FiUser, title: 'Account Settings', description: 'Manage your account details' },
-  { icon: FiLock, title: 'Privacy & Security', description: 'Control your privacy settings' },
-  { icon: FiBell, title: 'Notifications', description: 'Manage notification preferences' },
+  { icon: FiUser, title: 'Account Settings', description: 'Manage your account details', path: '/settings' },
+  { icon: FiLock, title: 'Privacy & Security', description: 'Control your privacy settings', path: '/settings' },
+  { icon: FiBell, title: 'Notifications', description: 'Manage notification preferences', path: '/notification-settings' },
   { icon: FiCreditCard, title: 'Payment Methods', description: 'Add or edit payment options' },
   { icon: FiHelpCircle, title: 'Help & Support', description: 'Get help and contact support' }
 ]
@@ -51,9 +51,17 @@ function SettingsModal({ isOpen, onClose }) {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => {
+                  if (section.path) {
+                    navigate(section.path);
+                    onClose();
+                  }
+                }}
+                whileHover={{ x: section.path ? 4 : 0 }}
+                whileTap={{ scale: section.path ? 0.98 : 1 }}
+                className={`w-full p-4 bg-gray-50 rounded-xl text-left ${
+                  section.path ? 'hover:bg-gray-100 cursor-pointer' : ''
+                }`}
               >
                 <FiX className="text-xl" />
               </button>

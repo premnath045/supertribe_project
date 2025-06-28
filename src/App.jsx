@@ -12,6 +12,8 @@ import MessagesPage from './pages/MessagesPage'
 import ProfileView from './pages/ProfileView'
 import PostView from './pages/PostView'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import SettingsPage from './pages/SettingsPage'
+import NotificationSettingsPage from './pages/NotificationSettingsPage'
 import CreatorVerificationPage from './pages/CreatorVerificationPage'
 import CreatorDashboardPage from './pages/CreatorDashboardPage'
 import StorageDebugPage from './pages/StorageDebugPage'
@@ -28,6 +30,16 @@ function App() {
               <Routes>
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/storage-debug" element={<StorageDebugPage />} />
+                <Route path="settings" element={
+                  <ProtectedRoute>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="notification-settings" element={
+                  <ProtectedRoute>
+                    <NotificationSettingsPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="/creator-verification" element={
                   <ProtectedRoute>
                     <CreatorVerificationPage />
