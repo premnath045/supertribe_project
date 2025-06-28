@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { FiArrowLeft, FiUser, FiLock, FiBell, FiLink, FiShield, FiTrash2, FiAlertTriangle } from 'react-icons/fi'
+import { FiArrowLeft, FiUser, FiLock, FiBell, FiLink, FiShield, FiTrash2, FiAlertTriangle, FiMail } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import ToggleSwitch from './ToggleSwitch'
