@@ -16,7 +16,7 @@ import {
 } from 'react-icons/fi'
 import { formatDistanceToNow } from 'date-fns'
 
-function PostCard({ post, onLike, onSave, onComment, onShare, onClick, isInView = true }) {
+function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVote, isInView = true }) {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
   const [isMuted, setIsMuted] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
