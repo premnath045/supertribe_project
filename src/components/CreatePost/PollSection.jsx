@@ -96,7 +96,7 @@ function PollSection({ poll, onPollChange, errors = {} }) {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="space-y-4 overflow-hidden"
+            className="space-y-4"
           >
             {/* Poll Question */}
             <div>
