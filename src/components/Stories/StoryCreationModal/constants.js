@@ -16,22 +16,23 @@ export const PERMISSION_TYPES = {
 export const VIDEO_CONSTRAINTS = {
   MAX_DURATION: 60000, // 60 seconds
   QUALITY: {
-    width: { ideal: 720 },
-    height: { ideal: 1280 },
-    frameRate: { ideal: 30 }
+    LOW: { width: 640, height: 480, frameRate: 15 },
+    MEDIUM: { width: 1280, height: 720, frameRate: 30 },
+    HIGH: { width: 1920, height: 1080, frameRate: 60 }
   }
 }
 
 export const CAMERA_CONSTRAINTS = {
   PHOTO: {
-    width: { ideal: 1080 },
-    height: { ideal: 1920 }
+    width: { ideal: 1280, max: 1920 },
+    height: { ideal: 720, max: 1080 }
+    // aspectRatio removed for better compatibility
   },
   VIDEO: {
-    width: { ideal: 720 },
-    height: { ideal: 1280 },
-    frameRate: { ideal: 30 }
-  }
+    width: { ideal: 1280, max: 1920 },
+    height: { ideal: 720, max: 1080 },
+    frameRate: { ideal: 30, max: 60 }
+  }  
 }
 
 export const TEXT_FONTS = [
