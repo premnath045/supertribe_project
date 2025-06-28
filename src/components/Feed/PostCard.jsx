@@ -345,56 +345,6 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
             )}
           </>
         )}
-      </div>
-
-      {/* Poll Display */}
-        {post.poll && Object.keys(post.poll).length > 0 && (
-          <div className="mt-3 mb-4">
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h4 className="font-semibold text-gray-900 mb-3">{post.poll.question}</h4>
-              <div className="space-y-2">
-                {post.poll.options.map((option, index) => {
-                  // Calculate percentage (default to 0)
-                  const totalVotes = post.poll.total_votes || 0;
-                  const optionVotes = post.poll.votes?.[index] || 0;
-                  const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
-                  
-                  return (
-                    <div key={index} className="relative">
-                      <button 
-                        className="w-full text-left p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-                        onClick={() => onPollVote && onPollVote(post.id, index)}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span>{option}</span>
-                          <span className="text-sm text-gray-500">{percentage}%</span>
-                        </div>
-                        
-                        {/* Progress bar */}
-                        <div className="absolute bottom-0 left-0 h-1 bg-primary-500 rounded-b-lg" style={{ width: `${percentage}%` }}></div>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {/* Poll metadata */}
-              <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-                <div className="flex items-center">
-                  <FiBarChart2 className="mr-1" />
-                  <span>{post.poll.total_votes || 0} votes</span>
-                </div>
-                <div className="flex items-center">
-                  <FiClock className="mr-1" />
-                  <span>
-                    {post.poll.duration === 1 
-                      ? '1 day remaining' 
-                      : `${post.poll.duration} days remaining`}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
       </div>}
 
       {/* Poll Display */}
