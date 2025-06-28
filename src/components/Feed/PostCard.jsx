@@ -342,51 +342,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
         )}
       </div>
 
-      {/* Actions */}
-      <div className="p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-4">
-            <motion.button
-              whileTap={{ scale: 0.8 }}
-              onClick={onLike}
-              className={`${
-                post.isLiked ? 'text-red-500' : 'text-gray-900'
-              } hover:text-red-500 transition-colors`}
-            >
-              <FiHeart 
-                className={`text-2xl ${post.isLiked ? 'fill-current' : ''}`} 
-              />
-            </motion.button>
-            
-            <motion.button
-              whileTap={{ scale: 0.8 }}
-              onClick={onComment}
-              className="text-gray-900 hover:text-gray-600 transition-colors"
-            >
-              <FiMessageCircle className="text-2xl" />
-            </motion.button>
-            
-            <motion.button
-              whileTap={{ scale: 0.8 }}
-              onClick={onShare}
-              className="text-gray-900 hover:text-gray-600 transition-colors"
-            >
-              <FiShare className="text-2xl" />
-            </motion.button>
-          </div>
-          
-          <motion.button
-            whileTap={{ scale: 0.8 }}
-            onClick={onSave}
-            className={`${
-              post.isSaved ? 'text-gray-900 fill-current' : 'text-gray-900'
-            } hover:text-gray-600 transition-colors`}
-          >
-            <FiBookmark className={`text-2xl ${post.isSaved ? 'fill-current' : ''}`} />
-          </motion.button>
-        </div>
-
-        {/* Poll Display */}
+      {/* Poll Display */}
         {post.poll && Object.keys(post.poll).length > 0 && (
           <div className="mt-3 mb-4">
             <div className="bg-gray-50 rounded-xl p-4">
@@ -435,6 +391,50 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
             </div>
           </div>
         )}
+
+      {/* Actions */}
+      <div className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-4">
+            <motion.button
+              whileTap={{ scale: 0.8 }}
+              onClick={onLike}
+              className={`${
+                post.isLiked ? 'text-red-500' : 'text-gray-900'
+              } hover:text-red-500 transition-colors`}
+            >
+              <FiHeart 
+                className={`text-2xl ${post.isLiked ? 'fill-current' : ''}`} 
+              />
+            </motion.button>
+            
+            <motion.button
+              whileTap={{ scale: 0.8 }}
+              onClick={onComment}
+              className="text-gray-900 hover:text-gray-600 transition-colors"
+            >
+              <FiMessageCircle className="text-2xl" />
+            </motion.button>
+            
+            <motion.button
+              whileTap={{ scale: 0.8 }}
+              onClick={onShare}
+              className="text-gray-900 hover:text-gray-600 transition-colors"
+            >
+              <FiShare className="text-2xl" />
+            </motion.button>
+          </div>
+          
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={onSave}
+            className={`${
+              post.isSaved ? 'text-gray-900 fill-current' : 'text-gray-900'
+            } hover:text-gray-600 transition-colors`}
+          >
+            <FiBookmark className={`text-2xl ${post.isSaved ? 'fill-current' : ''}`} />
+          </motion.button>
+        </div>
 
         {/* Like count */}
         {(post.likeCount ?? post.like_count ?? 0) > 0 && (
