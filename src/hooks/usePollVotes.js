@@ -145,7 +145,7 @@ export const usePollVotes = (postId) => {
     }
   }, [postId, fetchVotes])
 
-    
+  useEffect(() => {    
     // Set up polling instead of real-time subscription
     const pollingInterval = setInterval(() => {
       // Only poll if the document is visible
@@ -180,7 +180,7 @@ export const usePollVotes = (postId) => {
         supabase.removeChannel(subscriptionRef.current);
       }
     }
-  }, [postId, fetchVotes])
+  }, [postId, fetchVotes, user])
 
   return {
     userVote,
