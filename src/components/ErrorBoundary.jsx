@@ -1,4 +1,4 @@
-import { Component } from 'react'
+import React, { Component } from 'react'
 import { FiAlertTriangle } from 'react-icons/fi'
 
 class ErrorBoundary extends Component {

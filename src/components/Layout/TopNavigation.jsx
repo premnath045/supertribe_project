@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiSettings, FiHeart, FiUser } from 'react-icons/fi'
+import { FiSettings, FiHeart, FiUser, FiBell } from 'react-icons/fi'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import AuthModal from '../Auth/AuthModal'
+import useNotifications from '../../hooks/useNotifications'
 
 function TopNavigation({ onSettingsClick }) {
   const { user } = useAuth()
+  const { unreadCount } = useNotifications({ fetchOnMount: true })
   const [showAuthModal, setShowAuthModal] = useState(false)
 
   return (
@@ -38,13 +40,24 @@ function TopNavigation({ onSettingsClick }) {
                   onClick={onSettingsClick}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                 >
-                  <FiSettings className="text-xl" />
-                </button>
+                <FiBell className="text-xl" />
+                {unreadCount > 0 && (
+                  <motion.div 
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="absolute -top-1 -right-1 flex items-center justify-center"
+                  >
+                    <div className={`${unreadCount > 9 ? 'w-5 h-5 text-xs' : 'w-4 h-4 text-xs'} bg-red-500 rounded-full flex items-center justify-center text-white font-bold`}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </div>
+                  </motion.div>
+                )}
+                <span className="absolute inset-0 rounded-full bg-gray-200 opacity-0 group-hover:opacity-10 transition-opacity"></span>
               </>
             ) : (
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="flex items-center space-x-2 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors relative group"
               >
                 <FiUser className="text-lg" />
                 <span>Sign In</span>
