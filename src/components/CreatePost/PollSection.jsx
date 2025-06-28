@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiPlus, FiX, FiClock } from 'react-icons/fi'
+import { FiPlus, FiX, FiClock, FiInfo } from 'react-icons/fi'
 
 const POLL_DURATIONS = [
   { label: '1 Day', value: 1 },
@@ -178,6 +178,11 @@ function PollSection({ poll, onPollChange, errors = {} }) {
                   <span>Add Option</span>
                 </motion.button>
               )}
+            
+            <div className="mt-2 text-xs text-gray-500 flex items-center">
+              <FiInfo className="mr-1" />
+              <span>You can add up to 5 options</span>
+            </div>
 
               {errors.options && typeof errors.options === 'string' && (
                 <motion.p
@@ -239,6 +244,23 @@ function PollSection({ poll, onPollChange, errors = {} }) {
               </div>
             </div>
           </motion.div>
+        )}
+        
+        {poll.enabled && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <FiInfo className="text-blue-500 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-700">
+                <p className="font-medium">Poll Tips:</p>
+                <ul className="list-disc pl-4 mt-1 space-y-1">
+                  <li>Keep questions clear and concise</li>
+                  <li>Provide distinct options</li>
+                  <li>Avoid leading or biased questions</li>
+                  <li>Consider the poll duration based on your audience</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         )}
       </AnimatePresence>
     </div>
