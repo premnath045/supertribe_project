@@ -30,6 +30,13 @@ function SettingsModal({ isOpen, onClose }) {
     navigate('/creator-dashboard')
   }
 
+  const handleNavigateToSettings = (path) => {
+    if (path) {
+      onClose()
+      navigate(path)
+    }
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -144,6 +151,7 @@ function SettingsModal({ isOpen, onClose }) {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ x: 4 }}
                   whileTap={{ scale: 0.98 }}
+                  onClick={() => handleNavigateToSettings(section.path)}
                   className="w-full p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
                 >
                   <div className="flex items-center space-x-4">
