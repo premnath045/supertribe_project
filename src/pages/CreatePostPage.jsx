@@ -330,7 +330,7 @@ function CreatePostPage() {
           question: postData.poll.question,
           options: postData.poll.options.filter(opt => opt.trim()),
           duration: postData.poll.duration,
-          votes: {},
+          votes: {}, // Will store vote counts by option index
           total_votes: 0
         } : null,
         preview_video_url: previewVideoUrl,

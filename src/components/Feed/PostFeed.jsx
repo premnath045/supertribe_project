@@ -110,6 +110,59 @@ function PostFeed({ onPostClick, onShareClick }) {
     }
   }
 
+  // Handle poll vote
+  const handlePollVote = async (postId, optionIndex) => {
+    if (!user) {
+      // Redirect to sign in if not logged in
+      navigate('/?auth=signin');
+      return;
+    }
+    
+    try {
+      // Optimistic UI update
+      setPosts(prev => prev.map(post => {
+        if (post.id === postId && post.poll) {
+          // Create a deep copy of the poll object
+          const updatedPoll = JSON.parse(JSON.stringify(post.poll));
+          
+          // Initialize votes object if it doesn't exist
+          if (!updatedPoll.votes) updatedPoll.votes = {};
+          
+          // Initialize the vote count for this option if it doesn't exist
+          if (!updatedPoll.votes[optionIndex]) updatedPoll.votes[optionIndex] = 0;
+          
+          // Increment the vote count
+          updatedPoll.votes[optionIndex]++;
+          
+          // Increment total votes
+          updatedPoll.total_votes = (updatedPoll.total_votes || 0) + 1;
+          
+          return {
+            ...post,
+            poll: updatedPoll
+          };
+        }
+        return post;
+      }));
+      
+      // Send vote to server
+      const { error } = await supabase
+        .from('poll_votes')
+        .upsert({ 
+          post_id: postId, 
+          user_id: user.id,
+          option_index: optionIndex,
+          created_at: new Date().toISOString()
+        });
+      
+      if (error) throw error;
+      
+    } catch (error) {
+      console.error('❌ Error voting in poll:', error);
+      // You could show an error message here
+    }
+  };
+
   const POSTS_PER_PAGE = 10
 
   // Fetch posts from Supabase
@@ -420,6 +473,7 @@ function PostFeed({ onPostClick, onShareClick }) {
             onLike={() => handlePostInteraction(post.id, 'like')}
             onSave={() => handlePostInteraction(post.id, 'save')}
             onComment={() => handlePostClick(post)}
+            onPollVote={handlePollVote}
             onShare={() => onShareClick ? onShareClick(post) : handleShare(post)}
             onClick={() => handlePostClick(post)}
           />

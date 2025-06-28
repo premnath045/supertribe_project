@@ -10,7 +10,9 @@ import {
   FiMoreHorizontal,
   FiLock,
   FiFlag,
-  FiEye
+  FiEye,
+  FiBarChart2,
+  FiClock
 } from 'react-icons/fi'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -40,6 +42,7 @@ function PostView() {
   const [shareCount, setShareCount] = useState(0)
   const [viewCount, setViewCount] = useState(0)
   const [interactionLoading, setInteractionLoading] = useState(false)
+  const [userVote, setUserVote] = useState(null)
   
   // Comments using the comments hook
   const {
@@ -156,6 +159,73 @@ function PostView() {
       })
     } catch (err) {
       console.error('Error recording view:', err)
+    }
+  }
+
+  // Handle poll vote
+  const handlePollVote = async (optionIndex) => {
+    if (!user) {
+      navigate('/?auth=signin')
+      return
+    }
+    
+    if (!post || !post.poll) return
+    
+    try {
+      setInteractionLoading(true)
+      
+      // Check if user already voted
+      const { data: existingVote } = await supabase
+        .from('poll_votes')
+        .select('option_index')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .single()
+      
+      // Optimistic UI update
+      const updatedPoll = { ...post.poll }
+      
+      // Initialize votes object if needed
+      if (!updatedPoll.votes) updatedPoll.votes = {}
+      
+      // If user already voted, remove their previous vote
+      if (existingVote) {
+        const prevIndex = existingVote.option_index
+        updatedPoll.votes[prevIndex] = Math.max(0, (updatedPoll.votes[prevIndex] || 1) - 1)
+      }
+      
+      // Add new vote
+      updatedPoll.votes[optionIndex] = (updatedPoll.votes[optionIndex] || 0) + 1
+      
+      // Update total votes
+      updatedPoll.total_votes = Object.values(updatedPoll.votes).reduce((sum, count) => sum + count, 0)
+      
+      // Update post state
+      setPost({
+        ...post,
+        poll: updatedPoll
+      })
+      
+      setUserVote(optionIndex)
+      
+      // Send vote to server
+      const { error } = await supabase
+        .from('poll_votes')
+        .upsert({
+          post_id: postId,
+          user_id: user.id,
+          option_index: optionIndex,
+          created_at: new Date().toISOString()
+        })
+      
+      if (error) throw error
+      
+    } catch (err) {
+      console.error('Error voting in poll:', err)
+      // Revert optimistic update on error
+      fetchPostData()
+    } finally {
+      setInteractionLoading(false)
     }
   }
   
@@ -530,6 +600,67 @@ function PostView() {
                   #{tag}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Poll Display */}
+          {post.poll && Object.keys(post.poll).length > 0 && (
+            <div className="mt-3 mb-4">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h4 className="font-semibold text-gray-900 mb-3">{post.poll.question}</h4>
+                <div className="space-y-2">
+                  {post.poll.options.map((option, index) => {
+                    // Calculate percentage (default to 0)
+                    const totalVotes = post.poll.total_votes || 0;
+                    const optionVotes = post.poll.votes?.[index] || 0;
+                    const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
+                    const isSelected = userVote === index;
+                    
+                    return (
+                      <div key={index} className="relative">
+                        <button 
+                          className={`w-full text-left p-3 border rounded-lg transition-colors ${
+                            isSelected 
+                              ? 'bg-primary-50 border-primary-300' 
+                              : 'bg-white border-gray-200 hover:bg-gray-100'
+                          }`}
+                          onClick={() => handlePollVote(index)}
+                          disabled={interactionLoading}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className={isSelected ? 'font-medium' : ''}>{option}</span>
+                            <span className="text-sm text-gray-500">{percentage}%</span>
+                          </div>
+                          
+                          {/* Progress bar */}
+                          <div 
+                            className={`absolute bottom-0 left-0 h-1 rounded-b-lg ${
+                              isSelected ? 'bg-primary-500' : 'bg-gray-300'
+                            }`} 
+                            style={{ width: `${percentage}%` }}
+                          ></div>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Poll metadata */}
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+                  <div className="flex items-center">
+                    <FiBarChart2 className="mr-1" />
+                    <span>{post.poll.total_votes || 0} votes</span>
+                  </div>
+                  <div className="flex items-center">
+                    <FiClock className="mr-1" />
+                    <span>
+                      {post.poll.duration === 1 
+                        ? '1 day remaining' 
+                        : `${post.poll.duration} days remaining`}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
