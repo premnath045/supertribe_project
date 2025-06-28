@@ -1,66 +1,50 @@
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  FiUser, 
-  FiLock, 
-  FiBell, 
-  FiMail, 
-  FiLink, 
-  FiShield,
-  FiEye, 
-  FiEyeOff, 
-  FiCheck, 
-  FiX, 
-  FiAlertTriangle,
-  FiUpload,
-  FiTrash2,
-  FiGlobe,
-  FiMessageCircle,
-  FiLogOut
-} from 'react-icons/fi'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import { FiArrowLeft, FiUser, FiLock, FiBell, FiLink, FiShield, FiTrash2, FiAlertTriangle } from 'react-icons/fi'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { supabase } from '../../lib/supabase'
-import { validateEmail, validatePassword } from '../../utils/validation'
-import LoadingSpinner from '../UI/LoadingSpinner'
+import ToggleSwitch from './ToggleSwitch'
+import SettingsSection from './SettingsSection'
+import ConfirmationModal from './ConfirmationModal'
 
 function AccountSettings({ onClose }) {
-  const { user, userProfile, updateUserProfile, signOut } = useAuth()
+  const navigate = useNavigate()
+  const { user, userProfile, signOut } = useAuth()
+  const [activeTab, setActiveTab] = useState('profile')
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
+  const [showDeactivateConfirmation, setShowDeactivateConfirmation] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
-  // State for active section
-  const [activeSection, setActiveSection] = useState('profile')
-  
-  // State for form data
+  // Profile settings state
   const [profileForm, setProfileForm] = useState({
-    username: '',
-    display_name: '',
-    bio: '',
-    avatar_url: ''
+    username: userProfile?.username || '',
+    display_name: userProfile?.display_name || '',
+    bio: userProfile?.bio || '',
+    avatar_url: userProfile?.avatar_url || ''
   })
   
+  // Privacy settings state
   const [privacySettings, setPrivacySettings] = useState({
-    account_visibility: 'public',
-    message_privacy: 'followers',
-    post_visibility: 'public',
-    show_activity_status: true,
-    allow_mentions: 'everyone'
+    accountVisibility: 'public',
+    allowMessages: true,
+    showActivity: true,
+    allowTagging: true,
+    privateMode: false
   })
   
-  const [securityForm, setSecurityForm] = useState({
-    current_password: '',
-    new_password: '',
-    confirm_password: ''
-  })
-  
+  // Notification settings state
   const [notificationSettings, setNotificationSettings] = useState({
-    email_notifications: true,
-    push_notifications: true,
-    like_notifications: true,
-    comment_notifications: true,
-    follow_notifications: true,
-    message_notifications: true,
-    marketing_emails: false
+    pushEnabled: true,
+    emailEnabled: true,
+    likesNotify: true,
+    commentsNotify: true,
+    followsNotify: true,
+    mentionsNotify: true,
+    directMessagesNotify: true,
+    marketingEmails: false
   })
   
+  // Connected accounts state
   const [connectedAccounts, setConnectedAccounts] = useState({
     google: false,
     facebook: false,
@@ -68,1307 +52,765 @@ function AccountSettings({ onClose }) {
     instagram: false
   })
   
-  // State for loading and errors
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState({})
-  const [success, setSuccess] = useState(null)
-  
-  // State for confirmation modals
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
-  
-  // State for password visibility
-  const [showPassword, setShowPassword] = useState({
-    current: false,
-    new: false,
-    confirm: false
-  })
-  
-  // Initialize form data from user profile
-  useEffect(() => {
-    if (userProfile) {
-      setProfileForm({
-        username: userProfile.username || '',
-        display_name: userProfile.display_name || '',
-        bio: userProfile.bio || '',
-        avatar_url: userProfile.avatar_url || ''
-      })
-    }
-    
-    // In a real app, you would fetch these settings from the database
-    // For this demo, we'll use default values
-  }, [userProfile])
+  // Handle tab navigation
+  const handleTabChange = (tab) => {
+    setActiveTab(tab)
+  }
   
   // Handle profile form changes
   const handleProfileChange = (field, value) => {
     setProfileForm(prev => ({ ...prev, [field]: value }))
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }))
-    }
   }
   
-  // Handle privacy settings changes
-  const handlePrivacyChange = (field, value) => {
-    setPrivacySettings(prev => ({ ...prev, [field]: value }))
+  // Handle privacy toggle changes
+  const handlePrivacyToggle = (setting) => {
+    setPrivacySettings(prev => ({ ...prev, [setting]: !prev[setting] }))
   }
   
-  // Handle security form changes
-  const handleSecurityChange = (field, value) => {
-    setSecurityForm(prev => ({ ...prev, [field]: value }))
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }))
-    }
+  // Handle notification toggle changes
+  const handleNotificationToggle = (setting) => {
+    setNotificationSettings(prev => ({ ...prev, [setting]: !prev[setting] }))
   }
   
-  // Handle notification settings changes
-  const handleNotificationChange = (field, value) => {
-    setNotificationSettings(prev => ({ ...prev, [field]: value }))
+  // Handle account visibility change
+  const handleVisibilityChange = (value) => {
+    setPrivacySettings(prev => ({ ...prev, accountVisibility: value }))
   }
   
-  // Validate profile form
-  const validateProfileForm = () => {
-    const newErrors = {}
-    
-    if (!profileForm.username.trim()) {
-      newErrors.username = 'Username is required'
-    } else if (profileForm.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters'
-    }
-    
-    if (!profileForm.display_name.trim()) {
-      newErrors.display_name = 'Display name is required'
-    }
-    
-    if (profileForm.bio && profileForm.bio.length > 500) {
-      newErrors.bio = 'Bio must be less than 500 characters'
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-  
-  // Validate security form
-  const validateSecurityForm = () => {
-    const newErrors = {}
-    
-    if (!securityForm.current_password) {
-      newErrors.current_password = 'Current password is required'
-    }
-    
-    if (!securityForm.new_password) {
-      newErrors.new_password = 'New password is required'
-    } else {
-      const passwordValidation = validatePassword(securityForm.new_password)
-      if (!passwordValidation.isValid) {
-        newErrors.new_password = passwordValidation.message
-      }
-    }
-    
-    if (!securityForm.confirm_password) {
-      newErrors.confirm_password = 'Please confirm your new password'
-    } else if (securityForm.new_password !== securityForm.confirm_password) {
-      newErrors.confirm_password = 'Passwords do not match'
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-  
-  // Save profile changes
-  const handleSaveProfile = async () => {
-    if (!validateProfileForm()) return
-    
-    setLoading(true)
-    setSuccess(null)
-    
-    try {
-      // Check if username is already taken (if changed)
-      if (profileForm.username !== userProfile.username) {
-        const { data: existingUser } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', profileForm.username)
-          .single()
-          
-        if (existingUser) {
-          setErrors({ username: 'Username is already taken' })
-          setLoading(false)
-          return
-        }
-      }
-      
-      // Update profile in database
-      const { error } = await updateUserProfile({
-        username: profileForm.username,
-        display_name: profileForm.display_name,
-        bio: profileForm.bio,
-        avatar_url: profileForm.avatar_url
-      })
-      
-      if (error) throw error
-      
-      setSuccess('Profile updated successfully')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (error) {
-      console.error('Error updating profile:', error)
-      setErrors({ general: 'Failed to update profile' })
-    } finally {
-      setLoading(false)
-    }
-  }
-  
-  // Save privacy settings
-  const handleSavePrivacy = async () => {
-    setLoading(true)
-    setSuccess(null)
-    
-    try {
-      // In a real app, you would save these settings to the database
-      // For this demo, we'll just simulate a successful save
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      setSuccess('Privacy settings updated successfully')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (error) {
-      console.error('Error updating privacy settings:', error)
-      setErrors({ general: 'Failed to update privacy settings' })
-    } finally {
-      setLoading(false)
-    }
-  }
-  
-  // Change password
-  const handleChangePassword = async () => {
-    if (!validateSecurityForm()) return
-    
-    setLoading(true)
-    setSuccess(null)
-    
-    try {
-      // Update password using Supabase Auth
-      const { error } = await supabase.auth.updateUser({
-        password: securityForm.new_password
-      })
-      
-      if (error) throw error
-      
-      // Clear form
-      setSecurityForm({
-        current_password: '',
-        new_password: '',
-        confirm_password: ''
-      })
-      
-      setSuccess('Password changed successfully')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (error) {
-      console.error('Error changing password:', error)
-      setErrors({ general: 'Failed to change password. Please check your current password.' })
-    } finally {
-      setLoading(false)
-    }
-  }
-  
-  // Save notification settings
-  const handleSaveNotifications = async () => {
-    setLoading(true)
-    setSuccess(null)
-    
-    try {
-      // In a real app, you would save these settings to the database
-      // For this demo, we'll just simulate a successful save
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      setSuccess('Notification settings updated successfully')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (error) {
-      console.error('Error updating notification settings:', error)
-      setErrors({ general: 'Failed to update notification settings' })
-    } finally {
-      setLoading(false)
-    }
-  }
-  
-  // Connect social account
-  const handleConnectAccount = async (platform) => {
-    setLoading(true)
-    
-    try {
-      // In a real app, you would implement OAuth flow
-      // For this demo, we'll just simulate a successful connection
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      setConnectedAccounts(prev => ({
-        ...prev,
-        [platform]: true
-      }))
-    } catch (error) {
-      console.error(`Error connecting ${platform} account:`, error)
-      setErrors({ general: `Failed to connect ${platform} account` })
-    } finally {
-      setLoading(false)
-    }
-  }
-  
-  // Disconnect social account
-  const handleDisconnectAccount = async (platform) => {
-    setLoading(true)
-    
-    try {
-      // In a real app, you would remove the connection from the database
-      // For this demo, we'll just simulate a successful disconnection
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      setConnectedAccounts(prev => ({
-        ...prev,
-        [platform]: false
-      }))
-    } catch (error) {
-      console.error(`Error disconnecting ${platform} account:`, error)
-      setErrors({ general: `Failed to disconnect ${platform} account` })
-    } finally {
-      setLoading(false)
-    }
-  }
-  
-  // Deactivate account
-  const handleDeactivateAccount = async () => {
-    setLoading(true)
-    
-    try {
-      // In a real app, you would deactivate the account in the database
-      // For this demo, we'll just sign out
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      await signOut()
-      onClose()
-    } catch (error) {
-      console.error('Error deactivating account:', error)
-      setErrors({ general: 'Failed to deactivate account' })
-      setLoading(false)
-    }
-  }
-  
-  // Delete account
+  // Handle account deletion
   const handleDeleteAccount = async () => {
-    setLoading(true)
+    setIsSubmitting(true)
     
     try {
-      // In a real app, you would delete the account from the database
-      // For this demo, we'll just sign out
+      // In a real app, this would call an API to delete the account
       await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // Sign out the user
       await signOut()
-      onClose()
+      
+      // Navigate to home page
+      navigate('/')
     } catch (error) {
       console.error('Error deleting account:', error)
-      setErrors({ general: 'Failed to delete account' })
-      setLoading(false)
+    } finally {
+      setIsSubmitting(false)
+      setShowDeleteConfirmation(false)
     }
   }
   
-  // Render profile section
-  const renderProfileSection = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900">Profile Information</h3>
+  // Handle account deactivation
+  const handleDeactivateAccount = async () => {
+    setIsSubmitting(true)
+    
+    try {
+      // In a real app, this would call an API to deactivate the account
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      {/* Avatar */}
-      <div className="flex items-center space-x-4">
-        <img
-          src={profileForm.avatar_url || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150'}
-          alt="Profile"
-          className="w-16 h-16 rounded-full object-cover"
-        />
-        <div>
-          <div className="flex space-x-2">
-            <button className="text-sm bg-primary-500 hover:bg-primary-600 text-white px-3 py-1 rounded-lg transition-colors flex items-center space-x-1">
-              <FiUpload className="text-xs" />
-              <span>Upload</span>
-            </button>
-            <button className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-lg transition-colors flex items-center space-x-1">
-              <FiTrash2 className="text-xs" />
-              <span>Remove</span>
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF. Max size 2MB.</p>
-        </div>
-      </div>
+      // Sign out the user
+      await signOut()
       
-      {/* Username */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Username
-        </label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
-          <input
-            type="text"
-            value={profileForm.username}
-            onChange={(e) => handleProfileChange('username', e.target.value.toLowerCase())}
-            className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
-              errors.username ? 'border-red-300 bg-red-50' : 'border-gray-300'
-            }`}
-          />
-        </div>
-        {errors.username && (
-          <p className="mt-1 text-sm text-red-600">{errors.username}</p>
-        )}
-      </div>
-      
-      {/* Display Name */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Display Name
-        </label>
-        <input
-          type="text"
-          value={profileForm.display_name}
-          onChange={(e) => handleProfileChange('display_name', e.target.value)}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
-            errors.display_name ? 'border-red-300 bg-red-50' : 'border-gray-300'
-          }`}
-        />
-        {errors.display_name && (
-          <p className="mt-1 text-sm text-red-600">{errors.display_name}</p>
-        )}
-      </div>
-      
-      {/* Bio */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Bio
-        </label>
-        <textarea
-          value={profileForm.bio}
-          onChange={(e) => handleProfileChange('bio', e.target.value)}
-          rows={4}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none ${
-            errors.bio ? 'border-red-300 bg-red-50' : 'border-gray-300'
-          }`}
-          placeholder="Tell people about yourself..."
-        />
-        <div className="flex justify-between items-center mt-1">
-          {errors.bio ? (
-            <p className="text-sm text-red-600">{errors.bio}</p>
-          ) : (
-            <div></div>
-          )}
-          <p className={`text-xs ${profileForm.bio.length > 500 ? 'text-red-500' : 'text-gray-500'}`}>
-            {profileForm.bio.length}/500
-          </p>
-        </div>
-      </div>
-      
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSaveProfile}
-          disabled={loading}
-          className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
-        >
-          {loading ? (
-            <LoadingSpinner size="sm" />
-          ) : (
-            <>
-              <FiCheck className="text-sm" />
-              <span>Save Changes</span>
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  )
+      // Navigate to home page
+      navigate('/')
+    } catch (error) {
+      console.error('Error deactivating account:', error)
+    } finally {
+      setIsSubmitting(false)
+      setShowDeactivateConfirmation(false)
+    }
+  }
   
-  // Render privacy section
-  const renderPrivacySection = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900">Privacy Settings</h3>
-      
-      {/* Account Visibility */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Account Visibility
-        </label>
-        <div className="space-y-2">
-          <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all hover:bg-gray-50">
-            <input
-              type="radio"
-              name="account_visibility"
-              checked={privacySettings.account_visibility === 'public'}
-              onChange={() => handlePrivacyChange('account_visibility', 'public')}
-              className="h-4 w-4 text-primary-500 focus:ring-primary-500"
-            />
-            <div>
-              <p className="font-medium text-gray-900">Public</p>
-              <p className="text-sm text-gray-500">Anyone can view your profile and posts</p>
-            </div>
-          </label>
-          
-          <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all hover:bg-gray-50">
-            <input
-              type="radio"
-              name="account_visibility"
-              checked={privacySettings.account_visibility === 'private'}
-              onChange={() => handlePrivacyChange('account_visibility', 'private')}
-              className="h-4 w-4 text-primary-500 focus:ring-primary-500"
-            />
-            <div>
-              <p className="font-medium text-gray-900">Private</p>
-              <p className="text-sm text-gray-500">Only approved followers can view your profile and posts</p>
-            </div>
-          </label>
-        </div>
-      </div>
-      
-      {/* Message Privacy */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Who Can Message You
-        </label>
-        <select
-          value={privacySettings.message_privacy}
-          onChange={(e) => handlePrivacyChange('message_privacy', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-        >
-          <option value="everyone">Everyone</option>
-          <option value="followers">Followers Only</option>
-          <option value="nobody">Nobody</option>
-        </select>
-      </div>
-      
-      {/* Post Visibility */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Default Post Visibility
-        </label>
-        <select
-          value={privacySettings.post_visibility}
-          onChange={(e) => handlePrivacyChange('post_visibility', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-        >
-          <option value="public">Public</option>
-          <option value="followers">Followers Only</option>
-          <option value="private">Private</option>
-        </select>
-      </div>
-      
-      {/* Activity Status */}
-      <div className="flex items-center justify-between p-3 border rounded-lg">
-        <div>
-          <p className="font-medium text-gray-900">Show Activity Status</p>
-          <p className="text-sm text-gray-500">Let others see when you're online</p>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={privacySettings.show_activity_status}
-            onChange={(e) => handlePrivacyChange('show_activity_status', e.target.checked)}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-        </label>
-      </div>
-      
-      {/* Mentions */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Allow Mentions From
-        </label>
-        <select
-          value={privacySettings.allow_mentions}
-          onChange={(e) => handlePrivacyChange('allow_mentions', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-        >
-          <option value="everyone">Everyone</option>
-          <option value="followers">Followers Only</option>
-          <option value="nobody">Nobody</option>
-        </select>
-      </div>
-      
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSavePrivacy}
-          disabled={loading}
-          className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
-        >
-          {loading ? (
-            <LoadingSpinner size="sm" />
-          ) : (
-            <>
-              <FiCheck className="text-sm" />
-              <span>Save Changes</span>
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  )
-  
-  // Render security section
-  const renderSecuritySection = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900">Security Settings</h3>
-      
-      {/* Change Password */}
-      <div className="space-y-4">
-        <h4 className="font-medium text-gray-900">Change Password</h4>
-        
-        {/* Current Password */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Current Password
-          </label>
-          <div className="relative">
-            <input
-              type={showPassword.current ? 'text' : 'password'}
-              value={securityForm.current_password}
-              onChange={(e) => handleSecurityChange('current_password', e.target.value)}
-              className={`w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
-                errors.current_password ? 'border-red-300 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="Enter current password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(prev => ({ ...prev, current: !prev.current }))}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              {showPassword.current ? <FiEyeOff /> : <FiEye />}
-            </button>
-          </div>
-          {errors.current_password && (
-            <p className="mt-1 text-sm text-red-600">{errors.current_password}</p>
-          )}
-        </div>
-        
-        {/* New Password */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            New Password
-          </label>
-          <div className="relative">
-            <input
-              type={showPassword.new ? 'text' : 'password'}
-              value={securityForm.new_password}
-              onChange={(e) => handleSecurityChange('new_password', e.target.value)}
-              className={`w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
-                errors.new_password ? 'border-red-300 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="Enter new password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(prev => ({ ...prev, new: !prev.new }))}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              {showPassword.new ? <FiEyeOff /> : <FiEye />}
-            </button>
-          </div>
-          {errors.new_password && (
-            <p className="mt-1 text-sm text-red-600">{errors.new_password}</p>
-          )}
-        </div>
-        
-        {/* Confirm Password */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm New Password
-          </label>
-          <div className="relative">
-            <input
-              type={showPassword.confirm ? 'text' : 'password'}
-              value={securityForm.confirm_password}
-              onChange={(e) => handleSecurityChange('confirm_password', e.target.value)}
-              className={`w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
-                errors.confirm_password ? 'border-red-300 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="Confirm new password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(prev => ({ ...prev, confirm: !prev.confirm }))}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              {showPassword.confirm ? <FiEyeOff /> : <FiEye />}
-            </button>
-          </div>
-          {errors.confirm_password && (
-            <p className="mt-1 text-sm text-red-600">{errors.confirm_password}</p>
-          )}
-        </div>
-        
-        {/* Update Password Button */}
-        <div className="flex justify-end">
-          <button
-            onClick={handleChangePassword}
-            disabled={loading}
-            className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
-          >
-            {loading ? (
-              <LoadingSpinner size="sm" />
-            ) : (
-              <>
-                <FiLock className="text-sm" />
-                <span>Update Password</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-      
-      {/* Two-Factor Authentication */}
-      <div className="p-4 border rounded-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="font-medium text-gray-900">Two-Factor Authentication</h4>
-            <p className="text-sm text-gray-500">Add an extra layer of security to your account</p>
-          </div>
-          <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-medium transition-colors">
-            Set Up
-          </button>
-        </div>
-      </div>
-      
-      {/* Login History */}
-      <div>
-        <h4 className="font-medium text-gray-900 mb-3">Login History</h4>
-        <div className="border rounded-lg overflow-hidden">
-          <div className="p-4 border-b">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium text-gray-900">Current Session</p>
-                <p className="text-sm text-gray-500">Web Browser - {navigator.userAgent.split(' ').slice(-1)[0]}</p>
-              </div>
-              <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
-                Active Now
-              </span>
-            </div>
-          </div>
-          <div className="p-4">
-            <p className="text-center text-sm text-gray-500">
-              Login history is available in the full version
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-  
-  // Render notifications section
-  const renderNotificationsSection = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900">Email & Notifications</h3>
-      
-      {/* Email Preferences */}
-      <div>
-        <h4 className="font-medium text-gray-900 mb-3">Email Preferences</h4>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Email Notifications</p>
-              <p className="text-sm text-gray-500">Receive email notifications</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.email_notifications}
-                onChange={(e) => handleNotificationChange('email_notifications', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-            </label>
-          </div>
-          
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Marketing Emails</p>
-              <p className="text-sm text-gray-500">Receive updates and promotions</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.marketing_emails}
-                onChange={(e) => handleNotificationChange('marketing_emails', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-            </label>
-          </div>
-        </div>
-      </div>
-      
-      {/* Push Notifications */}
-      <div>
-        <h4 className="font-medium text-gray-900 mb-3">Push Notifications</h4>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Push Notifications</p>
-              <p className="text-sm text-gray-500">Enable browser notifications</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.push_notifications}
-                onChange={(e) => handleNotificationChange('push_notifications', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-            </label>
-          </div>
-        </div>
-      </div>
-      
-      {/* Notification Types */}
-      <div>
-        <h4 className="font-medium text-gray-900 mb-3">Notification Types</h4>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Likes</p>
-              <p className="text-sm text-gray-500">When someone likes your content</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.like_notifications}
-                onChange={(e) => handleNotificationChange('like_notifications', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-            </label>
-          </div>
-          
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Comments</p>
-              <p className="text-sm text-gray-500">When someone comments on your content</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.comment_notifications}
-                onChange={(e) => handleNotificationChange('comment_notifications', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-            </label>
-          </div>
-          
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Follows</p>
-              <p className="text-sm text-gray-500">When someone follows you</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.follow_notifications}
-                onChange={(e) => handleNotificationChange('follow_notifications', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-            </label>
-          </div>
-          
-          <div className="flex items-center justify-between p-3 border rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Messages</p>
-              <p className="text-sm text-gray-500">When you receive a new message</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notificationSettings.message_notifications}
-                onChange={(e) => handleNotificationChange('message_notifications', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-            </label>
-          </div>
-        </div>
-      </div>
-      
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSaveNotifications}
-          disabled={loading}
-          className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
-        >
-          {loading ? (
-            <LoadingSpinner size="sm" />
-          ) : (
-            <>
-              <FiCheck className="text-sm" />
-              <span>Save Changes</span>
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  )
-  
-  // Render connected accounts section
-  const renderConnectedAccountsSection = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900">Connected Accounts</h3>
-      <p className="text-sm text-gray-600">
-        Connect your social media accounts to share content and login more easily.
-      </p>
-      
-      <div className="space-y-4">
-        {/* Google */}
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-              <span className="text-red-600 font-bold">G</span>
-            </div>
-            <div>
-              <p className="font-medium text-gray-900">Google</p>
-              <p className="text-sm text-gray-500">
-                {connectedAccounts.google ? 'Connected' : 'Not connected'}
-              </p>
-            </div>
-          </div>
-          {connectedAccounts.google ? (
-            <button
-              onClick={() => handleDisconnectAccount('google')}
-              disabled={loading}
-              className="text-red-600 hover:text-red-700 font-medium text-sm"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={() => handleConnectAccount('google')}
-              disabled={loading}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-medium transition-colors"
-            >
-              Connect
-            </button>
-          )}
-        </div>
-        
-        {/* Facebook */}
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-blue-600 font-bold">F</span>
-            </div>
-            <div>
-              <p className="font-medium text-gray-900">Facebook</p>
-              <p className="text-sm text-gray-500">
-                {connectedAccounts.facebook ? 'Connected' : 'Not connected'}
-              </p>
-            </div>
-          </div>
-          {connectedAccounts.facebook ? (
-            <button
-              onClick={() => handleDisconnectAccount('facebook')}
-              disabled={loading}
-              className="text-red-600 hover:text-red-700 font-medium text-sm"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={() => handleConnectAccount('facebook')}
-              disabled={loading}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-medium transition-colors"
-            >
-              Connect
-            </button>
-          )}
-        </div>
-        
-        {/* Twitter */}
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-blue-600 font-bold">T</span>
-            </div>
-            <div>
-              <p className="font-medium text-gray-900">Twitter</p>
-              <p className="text-sm text-gray-500">
-                {connectedAccounts.twitter ? 'Connected' : 'Not connected'}
-              </p>
-            </div>
-          </div>
-          {connectedAccounts.twitter ? (
-            <button
-              onClick={() => handleDisconnectAccount('twitter')}
-              disabled={loading}
-              className="text-red-600 hover:text-red-700 font-medium text-sm"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={() => handleConnectAccount('twitter')}
-              disabled={loading}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-medium transition-colors"
-            >
-              Connect
-            </button>
-          )}
-        </div>
-        
-        {/* Instagram */}
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center">
-              <span className="text-pink-600 font-bold">I</span>
-            </div>
-            <div>
-              <p className="font-medium text-gray-900">Instagram</p>
-              <p className="text-sm text-gray-500">
-                {connectedAccounts.instagram ? 'Connected' : 'Not connected'}
-              </p>
-            </div>
-          </div>
-          {connectedAccounts.instagram ? (
-            <button
-              onClick={() => handleDisconnectAccount('instagram')}
-              disabled={loading}
-              className="text-red-600 hover:text-red-700 font-medium text-sm"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={() => handleConnectAccount('instagram')}
-              disabled={loading}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-medium transition-colors"
-            >
-              Connect
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-  
-  // Render account status section
-  const renderAccountStatusSection = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-gray-900">Account Status</h3>
-      
-      {/* Deactivate Account */}
-      <div className="p-4 border border-yellow-200 rounded-lg bg-yellow-50">
-        <h4 className="font-medium text-gray-900 mb-2">Deactivate Account</h4>
-        <p className="text-sm text-gray-600 mb-4">
-          Temporarily disable your account. You can reactivate anytime by signing in again.
-        </p>
-        <button
-          onClick={() => setShowDeactivateConfirm(true)}
-          className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          Deactivate Account
-        </button>
-      </div>
-      
-      {/* Delete Account */}
-      <div className="p-4 border border-red-200 rounded-lg bg-red-50">
-        <h4 className="font-medium text-gray-900 mb-2">Delete Account</h4>
-        <p className="text-sm text-gray-600 mb-4">
-          Permanently delete your account and all your data. This action cannot be undone.
-        </p>
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          Delete Account
-        </button>
-      </div>
-    </div>
-  )
-  
-  // Render active section content
-  const renderActiveSection = () => {
-    switch (activeSection) {
+  // Render the active tab content
+  const renderTabContent = () => {
+    switch (activeTab) {
       case 'profile':
-        return renderProfileSection()
-      case 'privacy':
-        return renderPrivacySection()
-      case 'security':
-        return renderSecuritySection()
-      case 'notifications':
-        return renderNotificationsSection()
-      case 'connected':
-        return renderConnectedAccountsSection()
-      case 'account':
-        return renderAccountStatusSection()
-      default:
-        return renderProfileSection()
-    }
-  }
-  
-  return (
-    <div className="flex flex-col h-full">
-      {/* Success Message */}
-      <AnimatePresence>
-        {success && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 flex items-center justify-between"
-          >
-            <div className="flex items-center">
-              <FiCheck className="text-green-500 mr-2" />
-              <span>{success}</span>
-            </div>
-            <button
-              onClick={() => setSuccess(null)}
-              className="text-green-700 hover:text-green-900"
+        return (
+          <div className="space-y-6">
+            <SettingsSection 
+              title="Profile Information" 
+              description="Update your personal information"
+              icon={FiUser}
             >
-              <FiX />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Error Message */}
-      <AnimatePresence>
-        {errors.general && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-center justify-between"
-          >
-            <div className="flex items-center">
-              <FiAlertTriangle className="text-red-500 mr-2" />
-              <span>{errors.general}</span>
-            </div>
-            <button
-              onClick={() => setErrors(prev => ({ ...prev, general: null }))}
-              className="text-red-700 hover:text-red-900"
-            >
-              <FiX />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-full md:w-64 md:border-r border-gray-200 p-4">
-          <nav className="space-y-1">
-            <button
-              onClick={() => setActiveSection('profile')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                activeSection === 'profile'
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'hover:bg-gray-100 text-gray-700'
-              }`}
-            >
-              <FiUser className={activeSection === 'profile' ? 'text-primary-500' : 'text-gray-500'} />
-              <span>Profile Information</span>
-            </button>
+              {/* Username Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Username
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
+                  <input
+                    type="text"
+                    value={profileForm.username}
+                    onChange={(e) => handleProfileChange('username', e.target.value.toLowerCase())}
+                    className="w-full pl-8 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all border-gray-300"
+                    placeholder="username"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  This is your unique username on the platform
+                </p>
+              </div>
+              
+              {/* Display Name Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.display_name}
+                  onChange={(e) => handleProfileChange('display_name', e.target.value)}
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all border-gray-300"
+                  placeholder="Your display name"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This is how your name will appear to others
+                </p>
+              </div>
+              
+              {/* Bio Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bio
+                </label>
+                <textarea
+                  value={profileForm.bio}
+                  onChange={(e) => handleProfileChange('bio', e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none border-gray-300"
+                  placeholder="Tell people about yourself..."
+                />
+                <div className="flex justify-end mt-1">
+                  <p className={`text-xs ${profileForm.bio.length > 500 ? 'text-red-500' : 'text-gray-500'}`}>
+                    {profileForm.bio.length}/500
+                  </p>
+                </div>
+              </div>
+              
+              {/* Profile Picture URL Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Profile Picture URL
+                </label>
+                <input
+                  type="url"
+                  value={profileForm.avatar_url}
+                  onChange={(e) => handleProfileChange('avatar_url', e.target.value)}
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all border-gray-300"
+                  placeholder="https://example.com/avatar.jpg"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter a URL to an image (JPG, PNG, GIF)
+                </p>
+              </div>
+              
+              {/* Save Button */}
+              <div className="pt-4">
+                <button className="w-full bg-primary-500 hover:bg-primary-600 text-white py-3 rounded-lg font-medium transition-colors">
+                  Save Profile
+                </button>
+              </div>
+            </SettingsSection>
             
-            <button
-              onClick={() => setActiveSection('privacy')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                activeSection === 'privacy'
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'hover:bg-gray-100 text-gray-700'
-              }`}
+            <SettingsSection 
+              title="Email Address" 
+              description="Manage your email settings"
+              icon={FiMail}
             >
-              <FiShield className={activeSection === 'privacy' ? 'text-primary-500' : 'text-gray-500'} />
-              <span>Privacy Settings</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveSection('security')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                activeSection === 'security'
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'hover:bg-gray-100 text-gray-700'
-              }`}
-            >
-              <FiLock className={activeSection === 'security' ? 'text-primary-500' : 'text-gray-500'} />
-              <span>Security Settings</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveSection('notifications')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                activeSection === 'notifications'
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'hover:bg-gray-100 text-gray-700'
-              }`}
-            >
-              <FiBell className={activeSection === 'notifications' ? 'text-primary-500' : 'text-gray-500'} />
-              <span>Email & Notifications</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveSection('connected')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                activeSection === 'connected'
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'hover:bg-gray-100 text-gray-700'
-              }`}
-            >
-              <FiLink className={activeSection === 'connected' ? 'text-primary-500' : 'text-gray-500'} />
-              <span>Connected Accounts</span>
-            </button>
-            
-            <button
-              onClick={() => setActiveSection('account')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                activeSection === 'account'
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'hover:bg-gray-100 text-gray-700'
-              }`}
-            >
-              <FiUser className={activeSection === 'account' ? 'text-primary-500' : 'text-gray-500'} />
-              <span>Account Status</span>
-            </button>
-            
-            <div className="pt-4 mt-4 border-t border-gray-200">
-              <button
-                onClick={signOut}
-                className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-              >
-                <FiLogOut className="text-red-500" />
-                <span>Sign Out</span>
-              </button>
-            </div>
-          </nav>
-        </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Email
+                </label>
+                <input
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                  className="w-full px-4 py-3 border rounded-lg bg-gray-100 text-gray-700 border-gray-300"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This is your current email address
+                </p>
+              </div>
+              
+              <div className="pt-4">
+                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-medium transition-colors">
+                  Change Email Address
+                </button>
+              </div>
+            </SettingsSection>
+          </div>
+        )
         
-        {/* Main Content */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeSection}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
+      case 'privacy':
+        return (
+          <div className="space-y-6">
+            <SettingsSection 
+              title="Privacy Settings" 
+              description="Control who can see your content and interact with you"
+              icon={FiShield}
             >
-              {renderActiveSection()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </div>
-      
-      {/* Deactivate Account Confirmation Modal */}
-      <AnimatePresence>
-        {showDeactivateConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowDeactivateConfirm(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+              {/* Account Visibility */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Account Visibility
+                </label>
+                <select
+                  value={privacySettings.accountVisibility}
+                  onChange={(e) => handleVisibilityChange(e.target.value)}
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all border-gray-300"
+                >
+                  <option value="public">Public - Anyone can see your profile</option>
+                  <option value="followers">Followers Only - Only followers can see your content</option>
+                  <option value="private">Private - Only approved followers can see your content</option>
+                </select>
+              </div>
+              
+              {/* Privacy Toggles */}
+              <ToggleSwitch
+                isOn={privacySettings.allowMessages}
+                onToggle={() => handlePrivacyToggle('allowMessages')}
+                label="Allow Direct Messages"
+                description="Let others send you direct messages"
+              />
+              
+              <ToggleSwitch
+                isOn={privacySettings.showActivity}
+                onToggle={() => handlePrivacyToggle('showActivity')}
+                label="Show Activity Status"
+                description="Let others see when you're active"
+              />
+              
+              <ToggleSwitch
+                isOn={privacySettings.allowTagging}
+                onToggle={() => handlePrivacyToggle('allowTagging')}
+                label="Allow Tagging"
+                description="Let others tag you in posts and comments"
+              />
+              
+              <ToggleSwitch
+                isOn={privacySettings.privateMode}
+                onToggle={() => handlePrivacyToggle('privateMode')}
+                label="Private Mode"
+                description="Hide your activity from everyone"
+              />
+              
+              {/* Save Button */}
+              <div className="pt-4">
+                <button className="w-full bg-primary-500 hover:bg-primary-600 text-white py-3 rounded-lg font-medium transition-colors">
+                  Save Privacy Settings
+                </button>
+              </div>
+            </SettingsSection>
+            
+            <SettingsSection 
+              title="Blocked Accounts" 
+              description="Manage accounts you've blocked"
+              icon={FiShield}
             >
-              <div className="p-6">
-                <div className="flex items-center justify-center mb-4">
-                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <FiAlertTriangle className="text-3xl text-yellow-500" />
+              <div className="text-center py-4">
+                <p className="text-gray-500">You haven't blocked any accounts</p>
+              </div>
+              
+              <div className="pt-2">
+                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-medium transition-colors">
+                  Manage Blocked Accounts
+                </button>
+              </div>
+            </SettingsSection>
+          </div>
+        )
+        
+      case 'security':
+        return (
+          <div className="space-y-6">
+            <SettingsSection 
+              title="Password" 
+              description="Update your password regularly for better security"
+              icon={FiLock}
+            >
+              {/* Current Password Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all border-gray-300"
+                  placeholder="Enter current password"
+                />
+              </div>
+              
+              {/* New Password Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all border-gray-300"
+                  placeholder="Enter new password"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Must be at least 8 characters with uppercase, lowercase, number, and special character
+                </p>
+              </div>
+              
+              {/* Confirm Password Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all border-gray-300"
+                  placeholder="Confirm new password"
+                />
+              </div>
+              
+              {/* Update Password Button */}
+              <div className="pt-4">
+                <button className="w-full bg-primary-500 hover:bg-primary-600 text-white py-3 rounded-lg font-medium transition-colors">
+                  Update Password
+                </button>
+              </div>
+            </SettingsSection>
+            
+            <SettingsSection 
+              title="Two-Factor Authentication" 
+              description="Add an extra layer of security to your account"
+              icon={FiShield}
+            >
+              <ToggleSwitch
+                isOn={false}
+                onToggle={() => {}}
+                label="Enable Two-Factor Authentication"
+                description="Require a verification code when signing in"
+              />
+              
+              <div className="pt-4">
+                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-medium transition-colors">
+                  Set Up Two-Factor Authentication
+                </button>
+              </div>
+            </SettingsSection>
+            
+            <SettingsSection 
+              title="Login Activity" 
+              description="Review your recent login sessions"
+              icon={FiShield}
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">Current Session</p>
+                    <p className="text-sm text-gray-500">Web Browser • {new Date().toLocaleDateString()}</p>
+                  </div>
+                  <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                    Active
                   </div>
                 </div>
                 
-                <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-                  Deactivate Account?
-                </h3>
-                
-                <p className="text-gray-600 text-center mb-6">
-                  Your account will be temporarily disabled and hidden from other users.
-                  You can reactivate anytime by signing in again.
-                </p>
-                
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">Previous Login</p>
+                    <p className="text-sm text-gray-500">Mobile App • 3 days ago</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-4">
+                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-medium transition-colors">
+                  View All Login Activity
+                </button>
+              </div>
+            </SettingsSection>
+          </div>
+        )
+        
+      case 'notifications':
+        return (
+          <div className="space-y-6">
+            <SettingsSection 
+              title="Notification Preferences" 
+              description="Control how you receive notifications"
+              icon={FiBell}
+            >
+              {/* Push Notifications */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Push Notifications</h4>
+                <ToggleSwitch
+                  isOn={notificationSettings.pushEnabled}
+                  onToggle={() => handleNotificationToggle('pushEnabled')}
+                  label="Enable Push Notifications"
+                  description="Receive notifications on your device"
+                />
+              </div>
+              
+              {/* Email Notifications */}
+              <div className="pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Email Notifications</h4>
+                <ToggleSwitch
+                  isOn={notificationSettings.emailEnabled}
+                  onToggle={() => handleNotificationToggle('emailEnabled')}
+                  label="Enable Email Notifications"
+                  description="Receive notifications via email"
+                />
+              </div>
+              
+              {/* Notification Types */}
+              <div className="pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Notification Types</h4>
                 <div className="space-y-3">
-                  <button
-                    onClick={handleDeactivateAccount}
-                    disabled={loading}
-                    className="w-full py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-semibold transition-colors"
-                  >
-                    {loading ? <LoadingSpinner size="sm" /> : 'Deactivate Account'}
-                  </button>
+                  <ToggleSwitch
+                    isOn={notificationSettings.likesNotify}
+                    onToggle={() => handleNotificationToggle('likesNotify')}
+                    label="Likes"
+                    description="When someone likes your content"
+                  />
                   
-                  <button
-                    onClick={() => setShowDeactivateConfirm(false)}
-                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-semibold transition-colors"
-                  >
-                    Cancel
+                  <ToggleSwitch
+                    isOn={notificationSettings.commentsNotify}
+                    onToggle={() => handleNotificationToggle('commentsNotify')}
+                    label="Comments"
+                    description="When someone comments on your content"
+                  />
+                  
+                  <ToggleSwitch
+                    isOn={notificationSettings.followsNotify}
+                    onToggle={() => handleNotificationToggle('followsNotify')}
+                    label="Follows"
+                    description="When someone follows you"
+                  />
+                  
+                  <ToggleSwitch
+                    isOn={notificationSettings.mentionsNotify}
+                    onToggle={() => handleNotificationToggle('mentionsNotify')}
+                    label="Mentions"
+                    description="When someone mentions you"
+                  />
+                  
+                  <ToggleSwitch
+                    isOn={notificationSettings.directMessagesNotify}
+                    onToggle={() => handleNotificationToggle('directMessagesNotify')}
+                    label="Direct Messages"
+                    description="When you receive a direct message"
+                  />
+                </div>
+              </div>
+              
+              {/* Marketing Emails */}
+              <div className="pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Marketing</h4>
+                <ToggleSwitch
+                  isOn={notificationSettings.marketingEmails}
+                  onToggle={() => handleNotificationToggle('marketingEmails')}
+                  label="Marketing Emails"
+                  description="Receive updates about new features and promotions"
+                />
+              </div>
+              
+              {/* Save Button */}
+              <div className="pt-4">
+                <button className="w-full bg-primary-500 hover:bg-primary-600 text-white py-3 rounded-lg font-medium transition-colors">
+                  Save Notification Settings
+                </button>
+              </div>
+            </SettingsSection>
+          </div>
+        )
+        
+      case 'connected':
+        return (
+          <div className="space-y-6">
+            <SettingsSection 
+              title="Connected Accounts" 
+              description="Link your social media accounts"
+              icon={FiLink}
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 font-bold">G</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Google</p>
+                      <p className="text-sm text-gray-500">
+                        {connectedAccounts.google ? 'Connected' : 'Not connected'}
+                      </p>
+                    </div>
+                  </div>
+                  <button className={`px-4 py-2 rounded-lg font-medium ${
+                    connectedAccounts.google 
+                      ? 'bg-gray-100 hover:bg-gray-200 text-gray-800' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}>
+                    {connectedAccounts.google ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 font-bold">f</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Facebook</p>
+                      <p className="text-sm text-gray-500">
+                        {connectedAccounts.facebook ? 'Connected' : 'Not connected'}
+                      </p>
+                    </div>
+                  </div>
+                  <button className={`px-4 py-2 rounded-lg font-medium ${
+                    connectedAccounts.facebook 
+                      ? 'bg-gray-100 hover:bg-gray-200 text-gray-800' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}>
+                    {connectedAccounts.facebook ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 font-bold">X</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Twitter</p>
+                      <p className="text-sm text-gray-500">
+                        {connectedAccounts.twitter ? 'Connected' : 'Not connected'}
+                      </p>
+                    </div>
+                  </div>
+                  <button className={`px-4 py-2 rounded-lg font-medium ${
+                    connectedAccounts.twitter 
+                      ? 'bg-gray-100 hover:bg-gray-200 text-gray-800' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}>
+                    {connectedAccounts.twitter ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                      <span className="text-white font-bold">In</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Instagram</p>
+                      <p className="text-sm text-gray-500">
+                        {connectedAccounts.instagram ? 'Connected' : 'Not connected'}
+                      </p>
+                    </div>
+                  </div>
+                  <button className={`px-4 py-2 rounded-lg font-medium ${
+                    connectedAccounts.instagram 
+                      ? 'bg-gray-100 hover:bg-gray-200 text-gray-800' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}>
+                    {connectedAccounts.instagram ? 'Disconnect' : 'Connect'}
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </SettingsSection>
+          </div>
+        )
+        
+      case 'account':
+        return (
+          <div className="space-y-6">
+            <SettingsSection 
+              title="Account Status" 
+              description="Manage your account status"
+              icon={FiUser}
+            >
+              <div className="space-y-4">
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h4 className="font-medium text-yellow-800 mb-2">Temporarily Deactivate Account</h4>
+                  <p className="text-sm text-yellow-700 mb-4">
+                    Your account will be hidden until you log in again. Your content will not be deleted.
+                  </p>
+                  <button 
+                    onClick={() => setShowDeactivateConfirmation(true)}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Deactivate Account
+                  </button>
+                </div>
+                
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="font-medium text-red-800 mb-2">Permanently Delete Account</h4>
+                  <p className="text-sm text-red-700 mb-4">
+                    This action cannot be undone. All of your data will be permanently deleted.
+                  </p>
+                  <button 
+                    onClick={() => setShowDeleteConfirmation(true)}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Delete Account
+                  </button>
+                </div>
+              </div>
+            </SettingsSection>
+            
+            <SettingsSection 
+              title="Data and Privacy" 
+              description="Manage your data and privacy settings"
+              icon={FiShield}
+            >
+              <div className="space-y-4">
+                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-medium transition-colors">
+                  Download Your Data
+                </button>
+                
+                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-medium transition-colors">
+                  Privacy Policy
+                </button>
+                
+                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-medium transition-colors">
+                  Terms of Service
+                </button>
+              </div>
+            </SettingsSection>
+          </div>
+        )
+        
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="h-full flex flex-col md:flex-row">
+      {/* Sidebar Navigation */}
+      <div className="w-full md:w-64 md:border-r border-gray-200 md:h-full overflow-y-auto">
+        <nav className="p-4">
+          <ul className="space-y-1">
+            <li>
+              <button
+                onClick={() => handleTabChange('profile')}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  activeTab === 'profile' 
+                    ? 'bg-primary-50 text-primary-600' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <FiUser className="text-lg" />
+                <span className="font-medium">Profile</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleTabChange('privacy')}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  activeTab === 'privacy' 
+                    ? 'bg-primary-50 text-primary-600' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <FiShield className="text-lg" />
+                <span className="font-medium">Privacy</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleTabChange('security')}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  activeTab === 'security' 
+                    ? 'bg-primary-50 text-primary-600' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <FiLock className="text-lg" />
+                <span className="font-medium">Security</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleTabChange('notifications')}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  activeTab === 'notifications' 
+                    ? 'bg-primary-50 text-primary-600' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <FiBell className="text-lg" />
+                <span className="font-medium">Notifications</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleTabChange('connected')}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  activeTab === 'connected' 
+                    ? 'bg-primary-50 text-primary-600' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <FiLink className="text-lg" />
+                <span className="font-medium">Connected Accounts</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleTabChange('account')}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  activeTab === 'account' 
+                    ? 'bg-primary-50 text-primary-600' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <FiUser className="text-lg" />
+                <span className="font-medium">Account</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      
+      {/* Main Content */}
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+        {/* Mobile Back Button */}
+        <div className="md:hidden mb-4">
+          <button
+            onClick={onClose}
+            className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+          >
+            <FiArrowLeft className="text-lg" />
+            <span>Back to Settings</span>
+          </button>
+        </div>
+        
+        {/* Tab Content */}
+        <div className="pb-20">
+          {renderTabContent()}
+        </div>
+      </div>
       
       {/* Delete Account Confirmation Modal */}
-      <AnimatePresence>
-        {showDeleteConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowDeleteConfirm(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-center mb-4">
-                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                    <FiAlertTriangle className="text-3xl text-red-500" />
-                  </div>
-                </div>
-                
-                <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-                  Delete Account Permanently?
-                </h3>
-                
-                <p className="text-gray-600 text-center mb-6">
-                  This action cannot be undone. All your data will be permanently deleted.
-                </p>
-                
-                <div className="space-y-3">
-                  <button
-                    onClick={handleDeleteAccount}
-                    disabled={loading}
-                    className="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors"
-                  >
-                    {loading ? <LoadingSpinner size="sm" /> : 'Delete Permanently'}
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-semibold transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ConfirmationModal
+        isOpen={showDeleteConfirmation}
+        onClose={() => setShowDeleteConfirmation(false)}
+        onConfirm={handleDeleteAccount}
+        title="Delete Account"
+        message="Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost."
+        confirmText="Delete Account"
+        confirmColor="red"
+        loading={isSubmitting}
+        icon={FiTrash2}
+      />
+      
+      {/* Deactivate Account Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeactivateConfirmation}
+        onClose={() => setShowDeactivateConfirmation(false)}
+        onConfirm={handleDeactivateAccount}
+        title="Deactivate Account"
+        message="Are you sure you want to temporarily deactivate your account? You can reactivate by logging in again."
+        confirmText="Deactivate Account"
+        confirmColor="yellow"
+        loading={isSubmitting}
+        icon={FiAlertTriangle}
+      />
     </div>
   )
 }
