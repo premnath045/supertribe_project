@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   FiCircle, 
   FiSquare, 
@@ -8,7 +8,8 @@ import {
   FiZapOff,
   FiCheck,
   FiMic,
-  FiMicOff
+  FiMicOff,
+  FiX
 } from 'react-icons/fi'
 import { CAMERA_CONSTRAINTS, VIDEO_CONSTRAINTS } from '../constants'
 
@@ -24,6 +25,7 @@ function VideoMode({ onCapture, onPreview }) {
   const [recordingError, setRecordingError] = useState(null)
 
   const videoRef = useRef(null)
+  const previewVideoRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
   const timerRef = useRef(null)
@@ -39,6 +41,33 @@ function VideoMode({ onCapture, onPreview }) {
       }
     }
   }, [facingMode, audioEnabled])
+
+  // Prevent zoom on double tap - similar to PhotoMode
+  useEffect(() => {
+    const handleTouchStart = (e) => {
+      if (e.touches.length > 1) {
+        e.preventDefault()
+      }
+    }
+
+    const handleTouchEnd = (e) => {
+      const now = new Date().getTime()
+      const timeSince = now - lastTouchEnd
+      if (timeSince < 300 && timeSince > 0) {
+        e.preventDefault()
+      }
+      lastTouchEnd = now
+    }
+
+    let lastTouchEnd = 0
+    document.addEventListener('touchstart', handleTouchStart, { passive: false })
+    document.addEventListener('touchend', handleTouchEnd, { passive: false })
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart)
+      document.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [])
 
   const startCamera = async () => {
     try {
@@ -236,7 +265,7 @@ function VideoMode({ onCapture, onPreview }) {
   }
 
   const confirmVideo = () => {
-    onPreview()
+    onPreview?.()
   }
 
   const formatTime = (seconds) => {
@@ -247,10 +276,24 @@ function VideoMode({ onCapture, onPreview }) {
 
   const progressPercentage = (recordingTime / (VIDEO_CONSTRAINTS.MAX_DURATION / 1000)) * 100
 
+  const getFlashIcon = () => {
+    switch (flashMode) {
+      case 'on': return <FiZap className="text-yellow-400 text-lg" />
+      default: return <FiZapOff className="text-white text-lg" />
+    }
+  }
+
+  const getFlashLabel = () => {
+    switch (flashMode) {
+      case 'on': return 'ON'
+      default: return 'OFF'
+    }
+  }
+
   // Show error state
   if (cameraError) {
     return (
-      <div className="h-full bg-black flex items-center justify-center p-8">
+      <div className="absolute inset-0 bg-black flex items-center justify-center p-8">
         <div className="text-center text-white">
           <div className="text-6xl mb-4">📷</div>
           <h3 className="text-lg font-semibold mb-2">Camera Error</h3>
@@ -269,159 +312,260 @@ function VideoMode({ onCapture, onPreview }) {
 
   if (recordedVideo) {
     return (
-      <div className="h-full relative bg-black">
-        <video
-          src={recordedVideo}
-          controls
-          className="w-full h-full object-cover"
-        />
-        
-        {/* Action Buttons */}
-        <div className="absolute bottom-40 left-0 right-0 flex items-center justify-center space-x-8">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={retakeVideo}
-            className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm border border-white/30 flex items-center justify-center"
-          >
-            <FiRotateCcw className="text-white text-xl" />
-          </motion.button>
+      <div className="absolute inset-0 bg-black">
+        <div className="relative w-full h-full">
+          <video
+            ref={previewVideoRef}
+            src={recordedVideo}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+            onLoadedData={() => {
+              console.log('✅ Video preview loaded successfully')
+            }}
+            onError={(e) => {
+              console.error('❌ Video preview error:', e)
+            }}
+          />
           
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={confirmVideo}
-            className="w-16 h-16 rounded-full bg-white flex items-center justify-center"
-          >
-            <FiCheck className="text-black text-xl" />
-          </motion.button>
+          {/* Top Bar - Close button */}
+          <div className="absolute top-40 left-0 right-0 z-10">
+            <div className="flex items-center justify-end px-4">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={retakeVideo}
+                className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center"
+              >
+                <FiX className="text-white text-xl" />
+              </motion.button>
+            </div>
+          </div>
+          
+          {/* Bottom Actions - Similar to PhotoMode */}
+          <div className="absolute bottom-40 left-0 right-0">
+            <div className="flex items-center justify-center space-x-12">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={retakeVideo}
+                className="flex flex-col items-center space-y-2"
+              >
+                <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                  <FiRotateCcw className="text-white text-xl" />
+                </div>
+                <span className="text-white text-xs font-medium">Retake</span>
+              </motion.button>
+              
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={confirmVideo}
+                className="flex flex-col items-center space-y-2"
+              >
+                <div className="w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center">
+                  <FiCheck className="text-white text-xl" />
+                </div>
+                <span className="text-white text-xs font-medium">Done</span>
+              </motion.button>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full relative bg-black overflow-hidden">
-      {/* Camera View */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="w-full h-full object-cover"
-      />
+    <div 
+      className="absolute inset-0 bg-black overflow-hidden touch-none"
+      style={{ 
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0
+      }}
+    >
+      {/* Camera View Container */}
+      <div className="relative w-full h-full">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-full object-cover"
+          style={{
+            transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)'
+          }}
+        />
 
-      {/* Recording Error */}
-      {recordingError && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-20 left-4 right-4 z-10"
-        >
-          <div className="bg-red-500 text-white px-4 py-2 rounded-lg text-center">
-            <p className="text-sm">{recordingError}</p>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Recording Indicator */}
-      {isRecording && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-20 left-1/2 transform -translate-x-1/2 z-10"
-        >
-          <div className="bg-red-500 text-white px-4 py-2 rounded-full flex items-center space-x-2">
+        {/* Progress Bar - Instagram Style */}
+        <AnimatePresence>
+          {isRecording && (
             <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-              className="w-3 h-3 bg-white rounded-full"
-            />
-            <span className="font-mono font-medium">{formatTime(recordingTime)}</span>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Progress Bar */}
-      {isRecording && (
-        <div className="absolute top-16 left-0 right-0 h-1 bg-white/20 z-10">
-          <motion.div
-            className="h-full bg-red-500"
-            style={{ width: `${progressPercentage}%` }}
-            transition={{ duration: 0.1 }}
-          />
-        </div>
-      )}
-
-      {/* Top Controls */}
-      <div className="absolute top-40 left-4 right-4 flex items-center justify-between z-10">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={toggleFlash}
-          className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center"
-        >
-          {flashMode === 'off' ? (
-            <FiZapOff className="text-white text-lg" />
-          ) : (
-            <FiZap className="text-white text-lg" />
-          )}
-        </motion.button>
-        
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={toggleAudio}
-          className={`w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center ${
-            audioEnabled ? 'bg-black/30' : 'bg-red-500'
-          }`}
-        >
-          {audioEnabled ? (
-            <FiMic className="text-white text-lg" />
-          ) : (
-            <FiMicOff className="text-white text-lg" />
-          )}
-        </motion.button>
-      </div>
-
-      {/* Bottom Controls */}
-      <div className="absolute bottom-32 left-0 right-0 flex items-center justify-center space-x-8 z-10">
-        {/* Camera Flip */}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={flipCamera}
-          disabled={isRecording}
-          className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm border border-white/30 flex items-center justify-center disabled:opacity-50"
-        >
-          <FiRotateCcw className="text-white text-xl" />
-        </motion.button>
-
-        {/* Record Button */}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={toggleRecording}
-          className="relative"
-        >
-          <div className={`w-20 h-20 rounded-full border-4 flex items-center justify-center ${
-            isRecording ? 'border-red-500' : 'border-white'
-          }`}>
-            <motion.div
-              animate={{
-                scale: isRecording ? 0.6 : 1,
-                borderRadius: isRecording ? '20%' : '50%'
-              }}
-              transition={{ duration: 0.2 }}
-              className={`w-16 h-16 ${
-                isRecording ? 'bg-red-500' : 'bg-transparent border-2 border-white'
-              } rounded-full flex items-center justify-center`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-0 left-0 right-0 h-1 bg-black/20 z-20"
             >
-              {isRecording ? (
-                <FiSquare className="text-white text-xl" />
-              ) : (
-                <FiCircle className="text-white text-2xl" />
-              )}
+              <motion.div
+                className="h-full bg-gradient-to-r from-red-500 to-red-600"
+                initial={{ width: '0%' }}
+                animate={{ width: `${progressPercentage}%` }}
+                transition={{ duration: 0.1, ease: 'linear' }}
+              />
             </motion.div>
-          </div>
-        </motion.button>
+          )}
+        </AnimatePresence>
 
-        {/* Placeholder for symmetry */}
-        <div className="w-12 h-12" />
+        {/* Recording Error */}
+        <AnimatePresence>
+          {recordingError && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-20 left-4 right-4 z-20"
+            >
+              <div className="bg-red-500 text-white px-4 py-3 rounded-xl text-center backdrop-blur-sm">
+                <p className="text-sm font-medium">{recordingError}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Recording Indicator - iPhone Style */}
+        <AnimatePresence>
+          {isRecording && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="absolute top-12 left-1/2 transform -translate-x-1/2 z-20"
+            >
+              <div className="bg-red-500 text-white px-4 py-2 rounded-full flex items-center space-x-3 backdrop-blur-sm shadow-lg">
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.3, 1],
+                    opacity: [1, 0.7, 1]
+                  }}
+                  transition={{ 
+                    duration: 1, 
+                    repeat: Infinity,
+                    ease: 'easeInOut'
+                  }}
+                  className="w-3 h-3 bg-white rounded-full"
+                />
+                <span className="font-mono font-semibold text-sm tracking-wider">
+                  {formatTime(recordingTime)}
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Top Controls Bar - Similar to PhotoMode */}
+        <div className="absolute top-40 left-0 right-0 z-20">
+          <div className="flex items-center justify-between px-6">
+            {/* Flash Control */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={toggleFlash}
+              disabled={isRecording}
+              className="flex flex-col items-center space-y-1 disabled:opacity-50"
+            >
+              <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                {getFlashIcon()}
+              </div>
+              <span className="text-white text-xs font-medium opacity-80">
+                {getFlashLabel()}
+              </span>
+            </motion.button>
+            
+            {/* Audio Toggle */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={toggleAudio}
+              disabled={isRecording}
+              className="flex flex-col items-center space-y-1 disabled:opacity-50"
+            >
+              <div className={`w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center ${
+                audioEnabled ? 'bg-black/40' : 'bg-red-500/80'
+              }`}>
+                {audioEnabled ? (
+                  <FiMic className="text-white text-lg" />
+                ) : (
+                  <FiMicOff className="text-white text-lg" />
+                )}
+              </div>
+              <span className="text-white text-xs font-medium opacity-80">
+                {audioEnabled ? 'MIC' : 'MUTED'}
+              </span>
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Bottom Controls - iPhone/Instagram Style */}
+        <div className="absolute bottom-40 left-0 right-0 z-20">
+          <div className="flex items-center justify-between px-8">
+            
+            {/* Camera Flip Button */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={flipCamera}
+              disabled={isRecording}
+              className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center disabled:opacity-50"
+            >
+              <FiRotateCcw className="text-white text-lg" />
+            </motion.button>
+
+            {/* Record Button - iPhone/Instagram Style */}
+            <div className="relative">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={toggleRecording}
+                className="relative z-10"
+              >
+                {/* Outer Ring */}
+                <div className={`w-20 h-20 rounded-full border-4 flex items-center justify-center transition-colors duration-200 ${
+                  isRecording ? 'border-red-500' : 'border-white/80'
+                }`}>
+                  {/* Inner Circle/Square */}
+                  <motion.div
+                    animate={{
+                      scale: isRecording ? 0.6 : 1,
+                      borderRadius: isRecording ? '20%' : '50%',
+                      backgroundColor: isRecording ? '#ef4444' : '#ffffff'
+                    }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="w-16 h-16"
+                  />
+                </div>
+                
+                {/* Recording Pulse Effect */}
+                <AnimatePresence>
+                  {isRecording && (
+                    <motion.div
+                      initial={{ scale: 1, opacity: 0.8 }}
+                      animate={{ 
+                        scale: [1, 1.4, 1],
+                        opacity: [0.8, 0, 0.8]
+                      }}
+                      exit={{ opacity: 0 }}
+                      transition={{ 
+                        duration: 2, 
+                        repeat: Infinity,
+                        ease: 'easeInOut'
+                      }}
+                      className="absolute inset-0 rounded-full border-4 border-red-500"
+                    />
+                  )}
+                </AnimatePresence>
+              </motion.button>
+            </div>
+
+            {/* Placeholder for symmetry */}
+            <div className="w-12 h-12" />
+          </div>
+        </div>
       </div>
     </div>
   )
