@@ -28,7 +28,7 @@ export const useMessages = (conversationId) => {
         .from('messages')
         .select(`
           *,
-          profiles:profiles!sender_id (
+          profiles:sender_id (
             id,
             username,
             display_name,
@@ -37,7 +37,7 @@ export const useMessages = (conversationId) => {
           reply_to:reply_to_id (
             id,
             content,
-            profiles:profiles!sender_id (
+            profiles:sender_id (
               display_name
             )
           )
@@ -83,7 +83,7 @@ export const useMessages = (conversationId) => {
         })
         .select(`
           *,
-          profiles:profiles!sender_id (
+          profiles:sender_id (
             id,
             username,
             display_name,
@@ -92,7 +92,7 @@ export const useMessages = (conversationId) => {
           reply_to:reply_to_id (
             id,
             content,
-            profiles:profiles!sender_id (
+            profiles:sender_id (
               display_name
             )
           )
@@ -142,7 +142,7 @@ export const useMessages = (conversationId) => {
         })
         .select(`
           *,
-          profiles:profiles!sender_id (
+          profiles:sender_id (
             id,
             username,
             display_name,
@@ -151,7 +151,7 @@ export const useMessages = (conversationId) => {
           reply_to:reply_to_id (
             id,
             content,
-            profiles:profiles!sender_id (
+            profiles:sender_id (
               display_name
             )
           )
@@ -324,7 +324,7 @@ export const useMessages = (conversationId) => {
             .from('messages')
             .select(`
               *,
-              profiles:profiles!sender_id (
+              profiles:sender_id (
                 id,
                 username,
                 display_name,
@@ -333,7 +333,7 @@ export const useMessages = (conversationId) => {
               reply_to:reply_to_id (
                 id,
                 content,
-                profiles:profiles!sender_id (
+                profiles:sender_id (
                   display_name
                 )
               )
@@ -375,7 +375,7 @@ export const useMessages = (conversationId) => {
             .from('messages')
             .select(`
               *,
-              profiles:profiles!sender_id (
+              profiles:sender_id (
                 id,
                 username,
                 display_name,
@@ -384,7 +384,7 @@ export const useMessages = (conversationId) => {
               reply_to:reply_to_id (
                 id,
                 content,
-                profiles:profiles!sender_id (
+                profiles:sender_id (
                   display_name
                 )
               )
