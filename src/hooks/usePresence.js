@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
+// Debounce function to limit frequency of function calls
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
 export const usePresence = () => {
   const { user } = useAuth()
   const [userPresence, setUserPresence] = useState({})
@@ -10,32 +19,58 @@ export const usePresence = () => {
   const presenceIntervalRef = useRef(null)
   const subscriptionRef = useRef(null)
   const typingTimeoutRef = useRef(null)
+  const presenceCacheRef = useRef({})
+  const lastUpdateRef = useRef({})
 
   // Fetch presence data for a list of user IDs
   const fetchPresence = useCallback(async (userIds) => {
-    if (!userIds || !userIds.length) return
+    if (!userIds || !userIds.length || !user) return
+    
+    // Filter out user IDs that were recently fetched (within last 30 seconds)
+    const now = Date.now();
+    const staleThreshold = 30000; // 30 seconds
+    
+    const staleUserIds = userIds.filter(id => {
+      const lastUpdate = lastUpdateRef.current[id] || 0;
+      return now - lastUpdate > staleThreshold;
+    });
+    
+    // If no stale user IDs, use cached data
+    if (staleUserIds.length === 0) {
+      return;
+    }
 
     try {
-      setLoading(true)
+      if (Object.keys(presenceCacheRef.current).length === 0) {
+        setLoading(true);
+      }
       setError(null)
 
-      const { data, error } = await supabase
-        .from('user_presence')
-        .select('*')
-        .in('user_id', userIds)
+      // Use the batch function to get presence data
+      const { data, error } = await supabase.rpc(
+        'get_user_presence_batch',
+        { user_ids: staleUserIds }
+      );
 
       if (error) throw error
 
-      const presenceMap = {}
-      data.forEach(presence => {
-        presenceMap[presence.user_id] = {
+      // Update cache with new data
+      const newPresenceData = { ...presenceCacheRef.current };
+      
+      data.forEach((presence) => {
+        newPresenceData[presence.user_id] = {
           status: presence.status,
           lastSeen: new Date(presence.last_seen_at),
           typingInConversation: presence.typing_in_conversation
-        }
-      })
+        };
+        
+        // Update last fetch time
+        lastUpdateRef.current[presence.user_id] = now;
+      });
 
-      setUserPresence(presenceMap)
+      presenceCacheRef.current = newPresenceData;
+      setUserPresence(newPresenceData);
+      
     } catch (err) {
       console.error('Error fetching presence data:', err)
       setError('Failed to load presence data')
@@ -45,8 +80,12 @@ export const usePresence = () => {
   }, [])
 
   // Update current user's presence
-  const updatePresence = useCallback(async (status = 'online') => {
+  const updatePresence = debounce(async (status = 'online') => {
     if (!user) return
+    
+    // Don't update if status hasn't changed
+    const currentStatus = presenceCacheRef.current[user.id]?.status;
+    if (currentStatus === status) return;
 
     try {
       const { error } = await supabase
@@ -62,10 +101,10 @@ export const usePresence = () => {
     } catch (err) {
       console.error('Error updating presence:', err)
     }
-  }, [user])
+  }, 5000) // Debounce presence updates to reduce database calls
 
   // Set typing indicator
-  const setTypingIndicator = useCallback(async (conversationId) => {
+  const setTypingIndicator = debounce(async (conversationId) => {
     if (!user || !conversationId) return
 
     try {
@@ -96,7 +135,7 @@ export const usePresence = () => {
     } catch (err) {
       console.error('Error setting typing indicator:', err)
     }
-  }, [user])
+  }, 2000) // Debounce typing indicator to reduce database calls
 
   // Clear typing indicator
   const clearTypingIndicator = useCallback(async () => {
@@ -150,35 +189,16 @@ export const usePresence = () => {
 
     // Set up interval to update presence every minute
     presenceIntervalRef.current = setInterval(() => {
-      updatePresence('online')
-    }, 60000)
-
-    // Subscribe to presence changes
-    const subscription = supabase
-      .channel('presence-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_presence'
-        },
-        (payload) => {
-          if (payload.new) {
-            setUserPresence(prev => ({
-              ...prev,
-              [payload.new.user_id]: {
-                status: payload.new.status,
-                lastSeen: new Date(payload.new.last_seen_at),
-                typingInConversation: payload.new.typing_in_conversation
-              }
-            }))
-          }
-        }
-      )
-      .subscribe()
-
-    subscriptionRef.current = subscription
+      // Only update presence if document is visible
+      if (document.visibilityState === 'visible') {
+        updatePresence('online');
+      } else {
+        updatePresence('away');
+      }
+    }, 300000) // Update every 5 minutes instead of every minute
+    
+    // Don't subscribe to all presence changes, just poll for specific users
+    // This significantly reduces the number of realtime subscriptions
 
     // Set up window events for presence
     const handleVisibilityChange = () => {

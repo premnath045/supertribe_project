@@ -18,8 +18,12 @@ function PostFeed({ onPostClick, onShareClick }) {
   const [page, setPage] = useState(0)
   const [visiblePosts, setVisiblePosts] = useState(new Set())
   
+  // Reduce sensitivity of intersection observer
   const { ref: loadMoreRef, inView: loadMoreInView } = useInView({
-    threshold: 0.1,
+    threshold: 0.5,
+    rootMargin: '100px',
+    triggerOnce: false,
+    delay: 200 // Add delay to reduce frequency of checks
   })
 
   // Intersection Observer for tracking visible posts
@@ -32,24 +36,26 @@ function PostFeed({ onPostClick, onShareClick }) {
       (entries) => {
         entries.forEach((entry) => {
           const postId = entry.target.dataset.postId
-          if (postId) {
-            setVisiblePosts(prev => {
-              const newSet = new Set(prev)
-              if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-                // Post is more than 50% visible
-                newSet.add(postId)
-              } else {
-                // Post is less than 50% visible
-                newSet.delete(postId)
-              }
-              return newSet
-            })
+          // Only process if postId exists and intersection ratio is significant
+          if (postId && entry.intersectionRatio >= 0.7) {
+            // Batch updates to visible posts to reduce re-renders
+            requestAnimationFrame(() => {
+              setVisiblePosts(prev => {
+                const newSet = new Set(prev)
+                if (entry.isIntersecting) {
+                  newSet.add(postId)
+                } else {
+                  newSet.delete(postId)
+                }
+                return newSet
+              })
+            });
           }
         })
       },
       {
-        threshold: [0.5], // Trigger when 50% of the post is visible
-        rootMargin: '-10% 0px -10% 0px' // Add some margin for better UX
+        threshold: [0.7], // Increase threshold to reduce frequency
+        rootMargin: '-5% 0px -5% 0px' // Reduce margin to be more precise
       }
     )
 
@@ -246,9 +252,14 @@ function PostFeed({ onPostClick, onShareClick }) {
   // Infinite scroll
   useEffect(() => {
     if (loadMoreInView && hasMore && !loading && !loadingMore) {
-      const nextPage = page + 1
-      setPage(nextPage)
-      fetchPosts(nextPage, true)
+      // Debounce the loadMore action to prevent multiple rapid calls
+      const timer = setTimeout(() => {
+        const nextPage = page + 1
+        setPage(nextPage)
+        fetchPosts(nextPage, true)
+      }, 300);
+      
+      return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadMoreInView, hasMore, loading, loadingMore, page])
