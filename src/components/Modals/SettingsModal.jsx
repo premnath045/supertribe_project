@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { FiX, FiUser, FiLock, FiBell, FiCreditCard, FiStar, FiHelpCircle, FiLogOut, FiSettings } from 'react-icons/fi'
+import AccountSettings from '../Settings/AccountSettings'
 import { useAuth } from '../../contexts/AuthContext'
 
 const settingsSections = [
@@ -14,6 +15,7 @@ const settingsSections = [
 function SettingsModal({ isOpen, onClose }) {
   const navigate = useNavigate()
   const { user, userProfile, signOut, isCreator, isFan } = useAuth()
+  const [showAccountSettings, setShowAccountSettings] = useState(false)
 
   const handleSignOut = async () => {
     await signOut()
@@ -23,6 +25,10 @@ function SettingsModal({ isOpen, onClose }) {
   const handleBecomeCreator = () => {
     onClose()
     navigate('/creator-verification')
+  }
+
+  const handleOpenAccountSettings = () => {
+    setShowAccountSettings(true)
   }
 
   const handleCreatorSettings = () => {
@@ -137,25 +143,29 @@ function SettingsModal({ isOpen, onClose }) {
             {/* Settings Options */}
             <div className="space-y-3">
               {settingsSections.map((section, index) => (
-                <motion.button
+                <motion.div
                   key={section.title}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  whileHover={{ x: 4 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
                 >
-                  <div className="flex items-center space-x-4">
-                    <div className="p-2 bg-white rounded-lg">
-                      <section.icon className="text-xl text-primary-500" />
+                  <motion.button
+                    whileHover={{ x: 4 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={section.title === 'Account Settings' ? handleOpenAccountSettings : null}
+                    className="w-full p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors text-left"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="p-2 bg-white rounded-lg">
+                        <section.icon className="text-xl text-primary-500" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{section.title}</h3>
+                        <p className="text-sm text-gray-600">{section.description}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{section.title}</h3>
-                      <p className="text-sm text-gray-600">{section.description}</p>
-                    </div>
-                  </div>
-                </motion.button>
+                  </motion.button>
+                </motion.div>
               ))}
 
               {/* Sign Out Button */}
@@ -189,6 +199,42 @@ function SettingsModal({ isOpen, onClose }) {
           </motion.div>
         </motion.div>
       )}
+      
+      {/* Account Settings Modal */}
+      <AnimatePresence>
+        {isOpen && showAccountSettings && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowAccountSettings(false)}
+          >
+            <motion.div
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 50, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="w-full max-w-4xl h-[90vh] bg-white rounded-xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900">Account Settings</h2>
+                <button
+                  onClick={() => setShowAccountSettings(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <FiX className="text-xl" />
+                </button>
+              </div>
+              
+              <div className="h-[calc(90vh-65px)] overflow-hidden">
+                <AccountSettings onClose={() => setShowAccountSettings(false)} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   )
 }
