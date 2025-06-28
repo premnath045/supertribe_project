@@ -129,22 +129,24 @@ function ContentPerformance() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-6 text-sm text-gray-600">
-                <div className="flex items-center space-x-1">
-                  <FiEye className="text-blue-500" />
-                  <span>{post.view_count}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <FiHeart className="text-red-500" />
-                  <span>{post.like_count}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <FiMessageCircle className="text-green-500" />
-                  <span>{post.comment_count}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <FiDollarSign className="text-yellow-500" />
-                  <span>${post.earnings}</span>
+              <div className="flex flex-col md:flex-row md:items-center md:space-x-6 text-sm text-gray-600">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 md:flex md:items-center md:space-x-6 mt-3 md:mt-0">
+                  <div className="flex items-center space-x-1 min-w-[60px]">
+                    <FiEye className="text-blue-500 flex-shrink-0" />
+                    <span>{post.view_count}</span>
+                  </div>
+                  <div className="flex items-center space-x-1 min-w-[60px]">
+                    <FiHeart className="text-red-500 flex-shrink-0" />
+                    <span>{post.like_count}</span>
+                  </div>
+                  <div className="flex items-center space-x-1 min-w-[60px]">
+                    <FiMessageCircle className="text-green-500 flex-shrink-0" />
+                    <span>{post.comment_count}</span>
+                  </div>
+                  <div className="flex items-center space-x-1 min-w-[60px]">
+                    <FiDollarSign className="text-yellow-500 flex-shrink-0" />
+                    <span>${post.earnings}</span>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -160,7 +162,7 @@ function ContentPerformance() {
         <div className="mt-4 text-center">
           <button
             onClick={() => setLimit(limit + 5)}
-            className="text-primary-500 hover:text-primary-600 font-medium text-sm"
+            className="text-primary-500 hover:text-primary-600 font-medium text-sm py-2 px-4"
           >
             Show More
           </button>
