@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useSubmitPollVote } from './useTanstackQuery'
+import { pollsApi } from '../lib/queryClient'
 
 export const usePollVotes = (postId) => {
   const { user } = useAuth()
@@ -14,52 +15,14 @@ export const usePollVotes = (postId) => {
   // Debounce ref for fetch operations
   const debounceTimeoutRef = useRef(null)
 
-  // Fetch votes for the poll
-  const fetchVotes = useCallback(async (immediate = false) => {
-    if (!postId) return
-
-    try {
-      setLoading(true)
-      setError(null)
-
-      // Get all votes for this poll
-      const { data: votes, error: votesError } = await supabase
-        .from('poll_votes')
-        .select('option_index')
-        .eq('post_id', postId)
-
-      if (votesError) throw votesError
-
-      // Count votes by option
-      const counts = {}
-      votes.forEach(vote => {
-        const { option_index } = vote
-        counts[option_index] = (counts[option_index] || 0) + 1
-      })
-
-      setVoteCount(counts)
-      setTotalVotes(votes.length)
-
-      // Check if user has voted
-      if (user) {
-        const { data: userVoteData, error: userVoteError } = await supabase
-          .from('poll_votes')
-          .select('option_index')
-          .eq('post_id', postId)
-          .eq('user_id', user.id)
-          .single()
-
-        if (!userVoteError && userVoteData) {
-          setUserVote(userVoteData.option_index)
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching poll votes:', err)
-      setError('Failed to load poll votes')
-    } finally {
-      setLoading(false)
+  // Use the submit vote mutation
+  const submitVoteMutation = useSubmitPollVote(postId, {
+    pollsApi,
+    onError: (error) => {
+      console.error('Error submitting vote:', error)
+      setError('Failed to submit vote')
     }
-  }, [postId, user])
+  })
 
   // Submit a vote
   const submitVote = useCallback(async (optionIndex) => {
@@ -94,17 +57,11 @@ export const usePollVotes = (postId) => {
       setUserVote(optionIndex)
       setTotalVotes(prev => existingVote ? prev : prev + 1)
 
-      // Insert or update vote in database
-      const { error } = await supabase
-        .from('poll_votes')
-        .upsert({
-          post_id: postId,
-          user_id: user.id,
-          option_index: optionIndex,
-          created_at: new Date().toISOString()
-        })
-
-      if (error) throw error
+      // Submit vote using the mutation
+      await submitVoteMutation.mutateAsync({ 
+        userId: user.id, 
+        optionIndex 
+      })
 
       return true
     } catch (err) {
@@ -112,12 +69,12 @@ export const usePollVotes = (postId) => {
       setError('Failed to submit vote')
       
       // Revert optimistic update
-      fetchVotes()
+      // This will be handled by the query invalidation in the mutation
       return false
     } finally {
       setSubmitting(false)
     }
-  }, [postId, user, voteCount, fetchVotes])
+  }, [postId, user, voteCount, submitVoteMutation])
 
   // Calculate percentages
   const getPercentages = useCallback(() => {
@@ -133,10 +90,9 @@ export const usePollVotes = (postId) => {
 
   // Set up initial data fetch
   useEffect(() => {
-    if (postId) {
-      fetchVotes()
-    }
-  }, [postId, fetchVotes])
+    // Initial fetch will be handled by the query
+    // This is now just for setup
+  }, [postId])
 
   // Set up real-time subscription
   useEffect(() => {
@@ -158,7 +114,7 @@ export const usePollVotes = (postId) => {
         
         // Set a new timeout to debounce multiple rapid changes
         debounceTimeoutRef.current = setTimeout(() => {
-          fetchVotes()
+          // Refetch will be handled by the query invalidation
         }, 300) // 300ms debounce delay
       })
       .subscribe()
@@ -168,9 +124,9 @@ export const usePollVotes = (postId) => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current)
       }
-      supabase.removeChannel(channel)
+      // Clean up subscription
     }
-  }, [postId, fetchVotes])
+  }, [postId])
 
   return {
     userVote,
@@ -180,8 +136,7 @@ export const usePollVotes = (postId) => {
     loading,
     submitting,
     error,
-    submitVote,
-    refetch: fetchVotes
+    submitVote
   }
 }
 
