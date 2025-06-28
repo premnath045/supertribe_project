@@ -38,26 +38,27 @@ function TopNavigation({ onSettingsClick }) {
                 
                 <button 
                   onClick={onSettingsClick}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors relative group"
                 >
-                <FiBell className="text-xl" />
-                {unreadCount > 0 && (
-                  <motion.div 
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="absolute -top-1 -right-1 flex items-center justify-center"
-                  >
-                    <div className={`${unreadCount > 9 ? 'w-5 h-5 text-xs' : 'w-4 h-4 text-xs'} bg-red-500 rounded-full flex items-center justify-center text-white font-bold`}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </div>
-                  </motion.div>
-                )}
-                <span className="absolute inset-0 rounded-full bg-gray-200 opacity-0 group-hover:opacity-10 transition-opacity"></span>
+                  <FiBell className="text-xl" />
+                  {unreadCount > 0 && (
+                    <motion.div 
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="absolute -top-1 -right-1 flex items-center justify-center"
+                    >
+                      <div className={`${unreadCount > 9 ? 'w-5 h-5 text-xs' : 'w-4 h-4 text-xs'} bg-red-500 rounded-full flex items-center justify-center text-white font-bold`}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </div>
+                    </motion.div>
+                  )}
+                  <span className="absolute inset-0 rounded-full bg-gray-200 opacity-0 group-hover:opacity-10 transition-opacity"></span>
+                </button>
               </>
             ) : (
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors relative group"
+                className="flex items-center space-x-2 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
               >
                 <FiUser className="text-lg" />
                 <span>Sign In</span>
@@ -65,8 +66,6 @@ function TopNavigation({ onSettingsClick }) {
             )}
           </div>
         </div>
-      )
-      }
       </motion.header>
 
       <AuthModal
