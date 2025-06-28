@@ -13,8 +13,6 @@ import {
   FiPause,
   FiBarChart2,
   FiClock,
-  FiBarChart2,
-  FiClock
 } from 'react-icons/fi'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
