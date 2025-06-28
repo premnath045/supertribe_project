@@ -63,6 +63,7 @@ export const queryKeys = {
  */
 export const postsApi = {
   getFeed: async (page = 0, limit = 10) => {
+    console.log('Fetching posts feed for page:', page, 'limit:', limit)
     const { data, error } = await supabase
       .from('posts')
       .select(`
@@ -96,7 +97,12 @@ export const postsApi = {
       .order('created_at', { ascending: false })
       .range(page * limit, (page + 1) * limit - 1)
     
-    if (error) throw error
+    if (error) {
+      console.error('Error fetching posts feed:', error)
+      throw error
+    }
+    
+    console.log('Posts feed data:', data)
     return data
   },
   

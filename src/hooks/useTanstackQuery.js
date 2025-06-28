@@ -7,15 +7,19 @@ import { queryKeys } from '../lib/queryClient'
 export const usePostsFeed = (page = 0, options = {}) => {
   const { 
     postsApi,
+    getNextPageParam,
     onSuccess,
     onError,
     enabled = true,
     ...queryOptions
   } = options
   
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.posts.feed(page),
-    queryFn: () => postsApi.getFeed(page),
+    queryFn: ({ pageParam = 0 }) => postsApi.getFeed(pageParam),
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.length === 10 ? allPages.length : undefined
+    },
     onSuccess,
     onError,
     enabled,

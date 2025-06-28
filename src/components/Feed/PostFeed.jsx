@@ -153,7 +153,7 @@ function PostFeed({ onPostClick, onShareClick }) {
   }
 
   // Flatten posts from all pages
-  const flattenedPosts = posts.pages ? posts.pages.flat() : []
+  const flattenedPosts = posts?.pages?.flatMap(page => page) || []
 
   return (
     <div className="space-y-0 pb-8">
@@ -167,7 +167,7 @@ function PostFeed({ onPostClick, onShareClick }) {
       )}
 
       {/* Posts */}
-      {flattenedPosts.map((post, index) => (
+      {flattenedPosts.length > 0 && flattenedPosts.map((post, index) => (
         <motion.div
           key={post.id}
           ref={(el) => registerPostRef(post.id, el)}
@@ -205,7 +205,7 @@ function PostFeed({ onPostClick, onShareClick }) {
       </div>
 
       {/* Empty state */}
-      {!loading && flattenedPosts.length === 0 && !error && (
+      {!loading && !loadingMore && flattenedPosts.length === 0 && !error && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">📝</div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
