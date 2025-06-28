@@ -54,13 +54,13 @@ export const useConversations = () => {
             .from('conversation_participants')
             .select(`
               user_id,
-              profiles!inner (
+             user_id(profiles(
                 username,
                 display_name,
                 avatar_url,
                 is_verified,
                 user_type
-              )
+             ))
             `)
             .eq('conversation_id', conversation.id)
             .eq('is_active', true)
