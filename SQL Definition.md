@@ -188,6 +188,45 @@ update on messages for EACH row
 execute FUNCTION update_updated_at_column ();
 
 
+<!--  notifications SQL -->
+create table public.notifications (
+  id uuid not null default gen_random_uuid (),
+  recipient_id uuid not null,
+  sender_id uuid null,
+  type text not null,
+  content_id uuid null,
+  message text not null,
+  is_read boolean null default false,
+  created_at timestamp with time zone null default now(),
+  metadata jsonb null default '{}'::jsonb,
+  constraint notifications_pkey primary key (id),
+  constraint notifications_recipient_id_fkey foreign KEY (recipient_id) references auth.users (id) on delete CASCADE,
+  constraint notifications_sender_id_fkey foreign KEY (sender_id) references auth.users (id) on delete set null,
+  constraint notifications_sender_id_profiles_fkey foreign KEY (sender_id) references profiles (id) on delete set null,
+  constraint notifications_type_check check (
+    (
+      type = any (
+        array[
+          'like'::text,
+          'follow'::text,
+          'comment'::text,
+          'mention'::text,
+          'purchase'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_notifications_recipient_id on public.notifications using btree (recipient_id) TABLESPACE pg_default;
+
+create index IF not exists idx_notifications_created_at on public.notifications using btree (created_at desc) TABLESPACE pg_default;
+
+create index IF not exists idx_notifications_is_read on public.notifications using btree (is_read) TABLESPACE pg_default;
+
+create index IF not exists idx_notifications_type on public.notifications using btree (type) TABLESPACE pg_default;
+
+
 <!--  payment_methods SQL -->
 create table public.payment_methods (
   id uuid not null default gen_random_uuid (),

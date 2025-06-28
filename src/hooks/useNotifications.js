@@ -25,12 +25,13 @@ export const useNotifications = (options = {}) => {
       setLoading(true)
       setError(null)
       
-      // Fetch notifications with pagination
+      // Fetch notifications with sender profile using subquery
       const { data, error: fetchError } = await supabase
         .from('notifications')
         .select(`
           *,
-          sender:profiles!sender_id (
+          sender_profile:sender_id (
+            id,
             username,
             display_name,
             avatar_url,
@@ -43,11 +44,17 @@ export const useNotifications = (options = {}) => {
       
       if (fetchError) throw fetchError
       
+      // Map sender_profile to sender for compatibility
+      const notificationsWithSender = (data || []).map(n => ({
+        ...n,
+        sender: n.sender_profile,
+      }))
+      
       // Update notifications
       if (page === 0) {
-        setNotifications(data || [])
+        setNotifications(notificationsWithSender)
       } else {
-        setNotifications(prev => [...prev, ...(data || [])])
+        setNotifications(prev => [...prev, ...notificationsWithSender])
       }
       
       // Check if there are more notifications
@@ -192,7 +199,8 @@ export const useNotifications = (options = {}) => {
           .from('notifications')
           .select(`
             *,
-            sender:profiles!sender_id (
+            sender_profile:sender_id (
+              id,
               username,
               display_name,
               avatar_url,
@@ -204,7 +212,7 @@ export const useNotifications = (options = {}) => {
         
         if (!error && data) {
           // Add to notifications list
-          setNotifications(prev => [data, ...prev])
+          setNotifications(prev => [{ ...data, sender: data.sender_profile }, ...prev])
           
           // Update unread count
           if (!data.is_read) {
