@@ -10,12 +10,11 @@ import {
   FiVolume2,
   FiVolumeX,
   FiPlay,
-  FiPause,
-  FiBarChart2,
-  FiClock,
+  FiPause
 } from 'react-icons/fi'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
+import PollDisplay from './PollDisplay'
 
 function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVote, isInView = true }) {
   const { user } = useAuth()
@@ -347,63 +346,11 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
 
       {/* Poll Display */}
       {hasPoll && (
-        <div className="p-4 pt-0">
-          <div className="bg-gray-50 rounded-xl p-4">
-            <h4 className="font-semibold text-gray-900 mb-3">{post.poll.question}</h4>
-            <div className="space-y-2">
-              {post.poll.options.map((option, index) => {
-                // Calculate percentage (default to 0)
-                const totalVotes = post.poll.total_votes || 0;
-                const optionVotes = post.poll.votes?.[index] || 0;
-                const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
-                const isUserVote = post.userVote === index;
-                
-                return (
-                  <div key={index} className="relative">
-                    <button 
-                      className={`w-full text-left p-3 border rounded-lg transition-colors ${
-                        isUserVote 
-                          ? 'bg-primary-50 border-primary-300' 
-                          : 'bg-white border-gray-200 hover:bg-gray-100'
-                      }`}
-                      onClick={() => onPollVote && onPollVote(post.id, index)}
-                      disabled={post.userVote !== undefined || !user}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className={isUserVote ? 'font-medium' : ''}>{option}</span>
-                        <span className="text-sm text-gray-500">{percentage}%</span>
-                      </div>
-                      
-                      {/* Progress bar */}
-                      <div 
-                        className={`absolute bottom-0 left-0 h-1 rounded-b-lg ${
-                          isUserVote ? 'bg-primary-500' : 'bg-gray-300'
-                        }`} 
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {/* Poll metadata */}
-            <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-              <div className="flex items-center">
-                <FiBarChart2 className="mr-1" />
-                <span>{post.poll.total_votes || 0} votes</span>
-              </div>
-              <div className="flex items-center">
-                <FiClock className="mr-1" />
-                <span>
-                  {post.poll.duration === 1 
-                    ? '1 day remaining' 
-                    : `${post.poll.duration} days remaining`}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PollDisplay 
+          post={post} 
+          onVote={onPollVote} 
+          compact={true} 
+        />
       )}
 
       {/* Actions */}

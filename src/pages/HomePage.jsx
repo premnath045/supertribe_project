@@ -3,10 +3,31 @@ import { useOutletContext } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import StoriesCarousel from '../components/Stories/StoriesCarousel'
 import PostFeed from '../components/Feed/PostFeed'
+import { supabase } from '../lib/supabase'
 
 function HomePage() {
   const { openStoryViewer, openPostDetail, openShareSheet, openStoryCreation } = useOutletContext()
-  const { isCreator } = useAuth()
+  const { isCreator, user } = useAuth()
+
+  // Set up real-time subscription for poll votes
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel('poll-votes-updates')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'poll_votes'
+      }, (payload) => {
+        console.log('Poll vote change detected:', payload)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
 
   return (
     <motion.div

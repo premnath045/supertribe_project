@@ -17,7 +17,6 @@ function PostFeed({ onPostClick, onShareClick }) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [page, setPage] = useState(0)
   const [visiblePosts, setVisiblePosts] = useState(new Set())
-  const [userVotes, setUserVotes] = useState({})
   
   const { ref: loadMoreRef, inView: loadMoreInView } = useInView({
     threshold: 0.1,
@@ -111,181 +110,14 @@ function PostFeed({ onPostClick, onShareClick }) {
     }
   }
 
-  // Handle poll vote
+  // Handle poll vote - simplified to use the usePollVotes hook
   const handlePollVote = async (postId, optionIndex) => {
     if (!user) {
       navigate('/?auth=signin')
       return
     }
     
-    try {
-      // Check if user already voted
-      const alreadyVoted = userVotes[postId] !== undefined
-      
-      if (alreadyVoted) {
-        console.log('User already voted on this poll')
-        return
-      }
-      
-      // Optimistic UI update
-      setPosts(prev => prev.map(post => {
-        if (post.id === postId && post.poll) {
-          // Create a deep copy of the poll object
-          const updatedPoll = JSON.parse(JSON.stringify(post.poll))
-          
-          // Initialize votes object if it doesn't exist
-          if (!updatedPoll.votes) updatedPoll.votes = {}
-          
-          // Initialize the vote count for this option if it doesn't exist
-          if (!updatedPoll.votes[optionIndex]) updatedPoll.votes[optionIndex] = 0
-          
-          // Increment the vote count
-          updatedPoll.votes[optionIndex]++
-          
-          // Increment total votes
-          updatedPoll.total_votes = (updatedPoll.total_votes || 0) + 1
-          
-          return {
-            ...post,
-            poll: updatedPoll,
-            userVote: optionIndex
-          }
-        }
-        return post
-      }))
-      
-      // Update userVotes state
-      setUserVotes(prev => ({
-        ...prev,
-        [postId]: optionIndex
-      }))
-      
-      // Send vote to server
-      const { error } = await supabase
-        .from('poll_votes')
-        .upsert({ 
-          post_id: postId, 
-          user_id: user.id,
-          option_index: optionIndex,
-          created_at: new Date().toISOString()
-        })
-      
-      if (error) throw error
-      
-    } catch (err) {
-      console.error('❌ Error voting in poll:', err)
-      
-      // Revert optimistic update
-      setPosts(prev => prev.map(post => {
-        if (post.id === postId) {
-          // Fetch fresh data for this post
-          fetchPostById(postId)
-          return post
-        }
-        return post
-      }))
-      
-      // Remove from userVotes
-      setUserVotes(prev => {
-        const newVotes = { ...prev }
-        delete newVotes[postId]
-        return newVotes
-      })
-    }
-  }
-  
-  // Fetch a single post by ID
-  const fetchPostById = async (postId) => {
-    try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select(`
-          id,
-          user_id,
-          content,
-          media_urls,
-          is_premium,
-          price,
-          subscriber_discount,
-          tags,
-          poll,
-          preview_video_url,
-          scheduled_for,
-          status,
-          like_count,
-          comment_count,
-          share_count,
-          view_count,
-          created_at,
-          updated_at,
-          profiles:user_id (
-            username,
-            display_name,
-            avatar_url,
-            is_verified,
-            user_type
-          )
-        `)
-        .eq('id', postId)
-        .single()
-      
-      if (error) throw error
-      
-      // Get user's vote for this post
-      let userVote = undefined
-      if (user) {
-        const { data: voteData } = await supabase
-          .from('poll_votes')
-          .select('option_index')
-          .eq('post_id', postId)
-          .eq('user_id', user.id)
-          .single()
-        
-        if (voteData) {
-          userVote = voteData.option_index
-          
-          // Update userVotes state
-          setUserVotes(prev => ({
-            ...prev,
-            [postId]: userVote
-          }))
-        }
-      }
-      
-      // Update the post in the posts array
-      setPosts(prev => prev.map(post => {
-        if (post.id === postId) {
-          return {
-            ...data,
-            user: {
-              id: data.user_id,
-              username: data.profiles?.username || 'unknown',
-              displayName: data.profiles?.display_name || 'Unknown User',
-              avatar: data.profiles?.avatar_url || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150',
-              isVerified: data.profiles?.is_verified || false,
-              isPremium: data.profiles?.user_type === 'creator' && data.profiles?.is_verified
-            },
-            media: data.media_urls ? data.media_urls.map(url => ({
-              type: 'image',
-              url: url,
-              thumbnail: url
-            })) : [],
-            likeCount: data.like_count || 0,
-            commentCount: data.comment_count || 0,
-            shareCount: data.share_count || 0,
-            userVote,
-            isLiked: post.isLiked,
-            isSaved: post.isSaved,
-            createdAt: new Date(data.created_at),
-            tags: data.tags || []
-          }
-        }
-        return post
-      }))
-      
-    } catch (err) {
-      console.error('Error fetching post:', err)
-    }
+    console.log(`User ${user.id} voted for option ${optionIndex} in poll ${postId}`)
   }
 
   const POSTS_PER_PAGE = 10
@@ -345,7 +177,6 @@ function PostFeed({ onPostClick, onShareClick }) {
       const postIds = postsData.map(post => post.id)
       let likedIds = []
       let savedIds = []
-      let userPollVotes = {}
       
       if (user && postIds.length > 0) {
         // Fetch likes
@@ -355,7 +186,6 @@ function PostFeed({ onPostClick, onShareClick }) {
           .in('post_id', postIds)
           .eq('user_id', user.id)
         likedIds = likesData ? likesData.map(l => l.post_id) : []
-        
         // Fetch saves
         const { data: savesData } = await supabase
           .from('post_saves')
@@ -363,21 +193,6 @@ function PostFeed({ onPostClick, onShareClick }) {
           .in('post_id', postIds)
           .eq('user_id', user.id)
         savedIds = savesData ? savesData.map(s => s.post_id) : []
-        
-        // Fetch poll votes
-        const { data: pollVotesData } = await supabase
-          .from('poll_votes')
-          .select('post_id, option_index')
-          .in('post_id', postIds)
-          .eq('user_id', user.id)
-        
-        if (pollVotesData) {
-          pollVotesData.forEach(vote => {
-            userPollVotes[vote.post_id] = vote.option_index
-          })
-        }
-        
-        setUserVotes(userPollVotes)
       }
 
       // Transform data to match expected format
@@ -399,7 +214,6 @@ function PostFeed({ onPostClick, onShareClick }) {
         likeCount: post.like_count || 0,
         commentCount: post.comment_count || 0,
         shareCount: post.share_count || 0,
-        userVote: userPollVotes[post.id],
         isLiked: likedIds.includes(post.id),
         isSaved: savedIds.includes(post.id),
         createdAt: new Date(post.created_at),
@@ -634,7 +448,6 @@ function PostFeed({ onPostClick, onShareClick }) {
             onLike={() => handlePostInteraction(post.id, 'like')}
             onSave={() => handlePostInteraction(post.id, 'save')}
             onComment={() => handlePostClick(post)}
-            onPollVote={handlePollVote}
             onShare={() => onShareClick ? onShareClick(post) : handleShare(post)}
             onPollVote={handlePollVote}
             onClick={() => handlePostClick(post)}
