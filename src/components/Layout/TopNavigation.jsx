@@ -65,6 +65,8 @@ function TopNavigation({ onSettingsClick }) {
             )}
           </div>
         </div>
+      )
+      }
       </motion.header>
 
       <AuthModal
