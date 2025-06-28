@@ -12,7 +12,7 @@ import {
   FiPlay,
   FiPause,
   FiBarChart2,
-  FiClock
+  FiClock,
   FiBarChart2,
   FiClock
 } from 'react-icons/fi'
