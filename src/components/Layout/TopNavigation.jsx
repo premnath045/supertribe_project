@@ -32,7 +32,7 @@ function TopNavigation({ onSettingsClick }) {
                   to="/notifications"
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors relative"
                 >
-                  <FiHeart className="text-xl" />
+                  <FiBell className="text-xl" />
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
                 </Link>
                 
@@ -40,7 +40,7 @@ function TopNavigation({ onSettingsClick }) {
                   onClick={onSettingsClick}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors relative group"
                 >
-                  <FiBell className="text-xl" />
+                  <FiSettings className="text-xl" />
                   {unreadCount > 0 && (
                     <motion.div 
                       initial={{ scale: 0.5, opacity: 0 }}
