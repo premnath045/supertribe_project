@@ -54,7 +54,7 @@ export const useConversations = () => {
             .from('conversation_participants')
             .select(`
               user_id,
-              profiles!user_id(
+              profiles(
                 username,
                 display_name,
                 avatar_url,

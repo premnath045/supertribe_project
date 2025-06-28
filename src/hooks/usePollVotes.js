@@ -125,7 +125,7 @@ export const usePollVotes = (postId) => {
             .select('option_index')
             .eq('post_id', postId)
             .eq('user_id', user.id)
-            .single()
+            .maybeSingle()
           
           if (!userVoteError && userVoteData) {
             setUserVote(userVoteData.option_index)
