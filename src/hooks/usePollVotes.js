@@ -2,15 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-// Debounce function to limit frequency of function calls
-const debounce = (func, wait) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
-
 export const usePollVotes = (postId) => {
   const { user } = useAuth()
   const [userVote, setUserVote] = useState(null)
@@ -19,7 +10,6 @@ export const usePollVotes = (postId) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const subscriptionRef = useRef(null)
 
   // Fetch votes for the poll
   const fetchVotes = useCallback(async () => {
@@ -145,42 +135,26 @@ export const usePollVotes = (postId) => {
     }
   }, [postId, fetchVotes])
 
-  useEffect(() => {    
-    // Set up polling instead of real-time subscription
-    const pollingInterval = setInterval(() => {
-      // Only poll if the document is visible
-      if (document.visibilityState === 'visible') {
-        fetchVotes();
-      }
-    }, 10000); // Poll every 10 seconds
-    
-    // For user's own votes, we still want real-time updates
-    if (user) {
-      const channel = supabase
-        .channel(`my-poll-votes-${postId}-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'poll_votes',
-            filter: `post_id=eq.${postId} AND user_id=eq.${user.id}`
-          }, () => {
-            fetchVotes()
-          }
-        )
-        .subscribe()
-        
-      subscriptionRef.current = channel;
-    }
-    
+  // Set up real-time subscription
+  useEffect(() => {
+    if (!postId) return
+
+    const channel = supabase
+      .channel(`poll-votes-${postId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'poll_votes',
+        filter: `post_id=eq.${postId}`
+      }, () => {
+        fetchVotes()
+      })
+      .subscribe()
+
     return () => {
-      clearInterval(pollingInterval);
-      if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current);
-      }
+      supabase.removeChannel(channel)
     }
-  }, [postId, fetchVotes, user])
+  }, [postId, fetchVotes])
 
   return {
     userVote,
@@ -190,7 +164,7 @@ export const usePollVotes = (postId) => {
     loading,
     submitting,
     error,
-    submitVote: debounce(submitVote, 300), // Debounce vote submission
+    submitVote,
     refetch: fetchVotes
   }
 }

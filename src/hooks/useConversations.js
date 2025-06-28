@@ -2,33 +2,16 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-// Cache duration in milliseconds (5 minutes)
-const CACHE_DURATION = 5 * 60 * 1000;
-
 export const useConversations = () => {
   const { user } = useAuth()
   const [conversations, setConversations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const subscriptionRef = useRef(null)
-  const cacheRef = useRef({
-    timestamp: 0,
-    data: []
-  })
-  const pollingIntervalRef = useRef(null)
 
   // Fetch conversations for the current user
   const fetchConversations = useCallback(async () => {
     if (!user) return
-
-    // Check if we have a valid cache
-    const now = Date.now();
-    if (now - cacheRef.current.timestamp < CACHE_DURATION && cacheRef.current.data.length > 0) {
-      console.log('Using cached conversations data');
-      setConversations(cacheRef.current.data);
-      setLoading(false);
-      return;
-    }
 
     try {
       setLoading(true)
@@ -147,13 +130,6 @@ export const useConversations = () => {
       validConversations.sort((a, b) => b.updatedAt - a.updatedAt)
 
       setConversations(validConversations)
-      
-      // Update cache
-      cacheRef.current = {
-        timestamp: Date.now(),
-        data: validConversations
-      };
-      
     } catch (err) {
       console.error('Error fetching conversations:', err)
       setError('Failed to load conversations')
@@ -251,49 +227,55 @@ export const useConversations = () => {
   // Set up real-time subscription for conversation updates
   useEffect(() => {
     if (!user) return
-    
+
     fetchConversations()
-    
-    // Set up polling instead of real-time subscription
-    pollingIntervalRef.current = setInterval(() => {
-      // Only poll if the document is visible
-      if (document.visibilityState === 'visible') {
-        fetchConversations();
-      }
-    }, 10000); // Poll every 10 seconds
-    
-    // Subscribe only to new messages for the current user
+
+    // Subscribe to conversation changes
     const subscription = supabase
-      .channel(`new-messages-${user.id}`)
+      .channel(`conversations:${user.id}`)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
-          table: 'messages',
-          filter: `sender_id=neq.${user.id}`
+          table: 'conversations',
+          filter: `id=in.(${
+            supabase.from('conversation_participants')
+              .select('conversation_id')
+              .eq('user_id', user.id)
+              .eq('is_active', true)
+          })`
         },
-        (payload) => {
-          // Check if this message is for a conversation the user is in
-          const conversationId = payload.new.conversation_id;
-          const isUserInConversation = conversations.some(conv => conv.id === conversationId);
-          
-          if (isUserInConversation) {
-            // Only refresh if the user is in this conversation
-            fetchConversations();
-          }
+        () => {
+          // Refresh conversations on any change
+          fetchConversations()
         }
       )
-      .subscribe();
-      
-    subscriptionRef.current = subscription;
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=in.(${
+            supabase.from('conversation_participants')
+              .select('conversation_id')
+              .eq('user_id', user.id)
+              .eq('is_active', true)
+          })`
+        },
+        () => {
+          // Refresh conversations when new messages arrive
+          fetchConversations()
+        }
+      )
+      .subscribe()
+
+    subscriptionRef.current = subscription
 
     return () => {
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe()
-      }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
       }
     }
   }, [user, fetchConversations])
@@ -305,12 +287,6 @@ export const useConversations = () => {
     getOrCreateDirectConversation,
     createGroupConversation,
     leaveConversation,
-    refetch: fetchConversations,
-    clearCache: () => {
-      cacheRef.current = {
-        timestamp: 0,
-        data: []
-      };
-    }
+    refetch: fetchConversations
   }
 }

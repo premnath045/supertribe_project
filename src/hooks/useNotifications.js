@@ -2,21 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-// Debounce function to limit frequency of function calls
-const debounce = (func, wait) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
-
 export const useNotifications = (options = {}) => {
   const { 
-    limit = 10, 
+    limit = 20, 
     fetchOnMount = true,
-    realtimeUpdates = true,
-    pollingInterval = 30000 // 30 seconds default polling interval
+    realtimeUpdates = true
   } = options
   
   const { user } = useAuth()
@@ -26,7 +16,6 @@ export const useNotifications = (options = {}) => {
   const [error, setError] = useState(null)
   const [hasMore, setHasMore] = useState(true)
   const subscriptionRef = useRef(null)
-  const pollingIntervalRef = useRef(null)
 
   // Fetch notifications
   const fetchNotifications = useCallback(async (page = 0) => {
@@ -36,22 +25,29 @@ export const useNotifications = (options = {}) => {
       setLoading(true)
       setError(null)
       
-      // Use the optimized function to fetch notifications
+      // Fetch notifications with sender profile using subquery
       const { data, error: fetchError } = await supabase
-        .rpc('get_filtered_notifications', {
-          user_id_param: user.id,
-          notification_type: null,
-          page_size: limit,
-          page_number: page,
-          include_read: true
-        })
+        .from('notifications')
+        .select(`
+          *,
+          sender_profile:sender_id (
+            id,
+            username,
+            display_name,
+            avatar_url,
+            is_verified
+          )
+        `)
+        .eq('recipient_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(page * limit, (page + 1) * limit - 1)
       
       if (fetchError) throw fetchError
       
       // Map sender_profile to sender for compatibility
       const notificationsWithSender = (data || []).map(n => ({
         ...n,
-        sender: typeof n.sender_profile === 'object' ? n.sender_profile : JSON.parse(n.sender_profile || '{}'),
+        sender: n.sender_profile,
       }))
       
       // Update notifications
@@ -84,12 +80,12 @@ export const useNotifications = (options = {}) => {
   }, [user, limit])
   
   // Load more notifications
-  const loadMore = debounce(() => {
+  const loadMore = useCallback(() => {
     if (loading || !hasMore) return
     
     const nextPage = Math.ceil(notifications.length / limit)
     fetchNotifications(nextPage)
-  }, 300) // Debounce loadMore to prevent multiple rapid calls
+  }, [loading, hasMore, notifications.length, limit, fetchNotifications])
   
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId) => {
@@ -186,45 +182,101 @@ export const useNotifications = (options = {}) => {
   // Set up real-time subscription
   useEffect(() => {
     if (!user || !realtimeUpdates) return
-
-    // Set up polling as an alternative to real-time for non-critical updates
-    if (pollingInterval > 0) {
-      pollingIntervalRef.current = setInterval(() => {
-        // Only refetch if we're not already loading and the user is active
-        if (!loading && document.visibilityState === 'visible') {
-          fetchNotifications(0);
-        }
-      }, pollingInterval);
-    }
     
-    // Only subscribe to unread count changes, not full notifications
-    if (realtimeUpdates) {
-      const channel = supabase
-        .channel(`user-notifications-count-${user.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `recipient_id=eq.${user.id}`
-        }, () => {
-          // Just update the unread count, don't fetch the full notification
-          setUnreadCount(prev => prev + 1)
+    // Subscribe to new notifications
+    const channel = supabase
+      .channel(`user-notifications-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `recipient_id=eq.${user.id}`
+      }, async (payload) => {
+        console.log('New notification received:', payload)
+        
+        // Fetch the complete notification with sender profile
+        const { data, error } = await supabase
+          .from('notifications')
+          .select(`
+            *,
+            sender_profile:sender_id (
+              id,
+              username,
+              display_name,
+              avatar_url,
+              is_verified
+            )
+          `)
+          .eq('id', payload.new.id)
+          .single()
+        
+        if (!error && data) {
+          // Add to notifications list
+          setNotifications(prev => [{ ...data, sender: data.sender_profile }, ...prev])
+          
+          // Update unread count
+          if (!data.is_read) {
+            setUnreadCount(prev => prev + 1)
+          }
+          
+          // Play notification sound
           playNotificationSound()
-        })
-        .subscribe()
-      
-      subscriptionRef.current = channel
-    }
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `recipient_id=eq.${user.id}`
+      }, (payload) => {
+        console.log('Notification updated:', payload)
+        
+        // Update notification in list
+        setNotifications(prev => 
+          prev.map(notif => 
+            notif.id === payload.new.id 
+              ? { ...notif, ...payload.new } 
+              : notif
+          )
+        )
+        
+        // Update unread count if read status changed
+        if (payload.old.is_read !== payload.new.is_read) {
+          setUnreadCount(prev => 
+            payload.new.is_read 
+              ? Math.max(0, prev - 1) 
+              : prev + 1
+          )
+        }
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `recipient_id=eq.${user.id}`
+      }, (payload) => {
+        console.log('Notification deleted:', payload)
+        
+        // Remove from notifications list
+        setNotifications(prev => 
+          prev.filter(notif => notif.id !== payload.old.id)
+        )
+        
+        // Update unread count if needed
+        if (!payload.old.is_read) {
+          setUnreadCount(prev => Math.max(0, prev - 1))
+        }
+      })
+      .subscribe()
+    
+    subscriptionRef.current = channel
     
     return () => {
       if (subscriptionRef.current) {
         supabase.removeChannel(subscriptionRef.current)
       }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-      }
     }
-  }, [user, realtimeUpdates, pollingInterval, loading])
+  }, [user, realtimeUpdates])
   
   // Initial fetch
   useEffect(() => {

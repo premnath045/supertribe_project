@@ -3,15 +3,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import NotificationSound from '../Notifications/NotificationSound'
 
-// Debounce function to limit frequency of function calls
-const debounce = (func, wait) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
-
 // Create context
 const NotificationContext = createContext({
   unreadCount: 0,
@@ -27,20 +18,12 @@ function NotificationProvider({ children }) {
   const { user } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
   const [hasNewNotification, setHasNewNotification] = useState(false)
-  const [lastFetchTime, setLastFetchTime] = useState(0)
-  const pollingIntervalRef = useRef(null)
   
   // Fetch unread count
   const fetchUnreadCount = async () => {
     if (!user) {
       setUnreadCount(0)
       return
-    }
-    
-    // Throttle fetches to no more than once every 30 seconds
-    const now = Date.now();
-    if (now - lastFetchTime < 30000) {
-      return;
     }
     
     try {
@@ -52,7 +35,6 @@ function NotificationProvider({ children }) {
       
       if (!error) {
         setUnreadCount(count || 0)
-        setLastFetchTime(now)
       }
     } catch (err) {
       console.error('Error fetching unread count:', err)
@@ -60,7 +42,7 @@ function NotificationProvider({ children }) {
   }
   
   // Mark all notifications as read
-  const markAllAsRead = debounce(async () => {
+  const markAllAsRead = async () => {
     if (!user) return
     
     try {
@@ -69,10 +51,8 @@ function NotificationProvider({ children }) {
       setHasNewNotification(false)
       
       // Update in database using RPC function
-      const { error } = await supabase.rpc(
-        'mark_all_notifications_read', 
-        { user_id_param: user.id }
-      )
+      const { error } = await supabase
+        .rpc('mark_all_notifications_read', { user_id: user.id })
       
       if (error) throw error
       
@@ -81,43 +61,42 @@ function NotificationProvider({ children }) {
       // Revert optimistic update on error
       fetchUnreadCount()
     }
-  }, 500) // Debounce to prevent multiple rapid calls
+  }
   
   // Set up real-time subscription
   useEffect(() => {
     if (!user) return
     
-    // Initial fetch of unread count
+    // Initial fetch
     fetchUnreadCount()
     
-    // Set up polling for unread count instead of real-time subscription
-    pollingIntervalRef.current = setInterval(() => {
-      // Only poll if the document is visible
-      if (document.visibilityState === 'visible') {
-        fetchUnreadCount();
-      }
-    }, 60000); // Poll every minute
-    
-    // Minimal subscription for new notifications only
+    // Subscribe to new notifications
     const channel = supabase
-      .channel(`user-new-notifications-${user.id}`)
+      .channel(`user-notifications-count-${user.id}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications',
         filter: `recipient_id=eq.${user.id}`
       }, () => {
-        // Just update the unread count and notification state
-        setUnreadCount(prev => prev + 1);
-        setHasNewNotification(true);
+        fetchUnreadCount()
+        setHasNewNotification(true)
       })
-      .subscribe();
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `recipient_id=eq.${user.id}`
+      }, (payload) => {
+        // If read status changed, update count
+        if (payload.old.is_read !== payload.new.is_read) {
+          fetchUnreadCount()
+        }
+      })
+      .subscribe()
     
     return () => {
       supabase.removeChannel(channel)
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
     }
   }, [user])
   
@@ -133,7 +112,7 @@ function NotificationProvider({ children }) {
     unreadCount,
     hasNewNotification,
     markAllAsRead,
-    refreshNotifications: debounce(fetchUnreadCount, 1000) // Debounce refresh
+    refreshNotifications: fetchUnreadCount
   }
   
   return (
