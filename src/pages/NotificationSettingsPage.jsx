@@ -14,7 +14,7 @@ import {
   FiSave
 } from 'react-icons/fi'
 import { useAuth } from '../contexts/AuthContext'
-import LoadingSpinner from '../UI/LoadingSpinner'
+import LoadingSpinner from '../components/UI/LoadingSpinner'
 
 function NotificationSettingsPage() {
   const navigate = useNavigate()

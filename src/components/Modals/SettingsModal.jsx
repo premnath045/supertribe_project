@@ -51,17 +51,9 @@ function SettingsModal({ isOpen, onClose }) {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
-                onClick={() => {
-                  if (section.path) {
-                    navigate(section.path);
-                    onClose();
-                  }
-                }}
-                whileHover={{ x: section.path ? 4 : 0 }}
-                whileTap={{ scale: section.path ? 0.98 : 1 }}
-                className={`w-full p-4 bg-gray-50 rounded-xl text-left ${
-                  section.path ? 'hover:bg-gray-100 cursor-pointer' : ''
-                }`}
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <FiX className="text-xl" />
               </button>
