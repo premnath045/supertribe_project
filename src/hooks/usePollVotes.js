@@ -91,10 +91,55 @@ export const usePollVotes = (postId) => {
     return percentages
   }, [voteCount, totalVotes])
 
-  // Set up initial data fetch
+  // Fetch initial poll data
   useEffect(() => {
-    // Initial fetch will be handled by the query
-    // This is now just for setup
+    const fetchInitialData = async () => {
+      if (!postId) return
+      
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Fetch all votes for this poll
+        const { data: votes, error: votesError } = await supabase
+          .from('poll_votes')
+          .select('option_index')
+          .eq('post_id', postId)
+        
+        if (votesError) throw votesError
+        
+        // Count votes by option
+        const counts = {}
+        votes.forEach(vote => {
+          const { option_index } = vote
+          counts[option_index] = (counts[option_index] || 0) + 1
+        })
+        
+        setVoteCount(counts)
+        setTotalVotes(votes.length)
+        
+        // Check if current user has voted
+        if (user) {
+          const { data: userVoteData, error: userVoteError } = await supabase
+            .from('poll_votes')
+            .select('option_index')
+            .eq('post_id', postId)
+            .eq('user_id', user.id)
+            .single()
+          
+          if (!userVoteError && userVoteData) {
+            setUserVote(userVoteData.option_index)
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching poll data:', err)
+        setError('Failed to load poll data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchInitialData()
   }, [postId])
 
   // Set up real-time subscription
