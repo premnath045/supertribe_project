@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -11,8 +11,11 @@ export const usePollVotes = (postId) => {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // Debounce ref for fetch operations
+  const debounceTimeoutRef = useRef(null)
+
   // Fetch votes for the poll
-  const fetchVotes = useCallback(async () => {
+  const fetchVotes = useCallback(async (immediate = false) => {
     if (!postId) return
 
     try {
@@ -138,8 +141,9 @@ export const usePollVotes = (postId) => {
   // Set up real-time subscription
   useEffect(() => {
     if (!postId) return
-
-    const channel = supabase
+    
+    // Initial fetch without debounce
+    fetchVotes(true)
       .channel(`poll-votes-${postId}`)
       .on('postgres_changes', {
         event: '*',
@@ -147,11 +151,23 @@ export const usePollVotes = (postId) => {
         table: 'poll_votes',
         filter: `post_id=eq.${postId}`
       }, () => {
-        fetchVotes()
+        // Clear any existing timeout
+        if (debounceTimeoutRef.current) {
+          clearTimeout(debounceTimeoutRef.current)
+        }
+        
+        // Set a new timeout to debounce multiple rapid changes
+        debounceTimeoutRef.current = setTimeout(() => {
+          fetchVotes()
+        }, 300) // 300ms debounce delay
       })
       .subscribe()
 
     return () => {
+      // Clean up timeout on unmount
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
       supabase.removeChannel(channel)
     }
   }, [postId, fetchVotes])
