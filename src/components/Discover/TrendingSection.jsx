@@ -15,7 +15,9 @@ function TrendingSection({ tags }) {
           <div className="flex items-center justify-between">
             <div>
               <h4 className="font-semibold text-gray-900">#{tag.tag}</h4>
-              <p className="text-sm text-gray-500">{tag.count.toLocaleString()} posts</p>
+              <p className="text-sm text-gray-500">
+                {(typeof tag.count === 'number' ? tag.count.toLocaleString() : '0')} posts
+              </p>
             </div>
             <div className="text-primary-500 font-bold text-lg">
               #{index + 1}
