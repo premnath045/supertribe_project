@@ -612,7 +612,7 @@ export const messagesApi = {
       .from('messages')
       .select(`
         *,
-        profiles:sender_id (
+        profiles!sender_id (
           id,
           username,
           display_name,
@@ -621,7 +621,7 @@ export const messagesApi = {
         reply_to:reply_to_id (
           id,
           content,
-          profiles:sender_id (
+          profiles!sender_id (
             display_name
           )
         )
@@ -646,7 +646,7 @@ export const messagesApi = {
       })
       .select(`
         *,
-        profiles:profiles!sender_id (
+        profiles!sender_id (
           id,
           username,
           display_name,
@@ -655,7 +655,7 @@ export const messagesApi = {
         reply_to:reply_to_id (
           id,
           content,
-          profiles:profiles!sender_id (
+          profiles!sender_id (
             display_name
           )
         )
