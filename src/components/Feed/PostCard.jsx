@@ -13,16 +13,11 @@ import {
   FiPause
 } from 'react-icons/fi'
 import { formatDistanceToNow } from 'date-fns'
-import { useAuth } from '../contexts/AuthContext'
-import { supabase } from '../lib/supabase'
-import { useNavigate } from 'react-router-dom'
-import { usePostLike, usePostSave } from '../hooks/useTanstackQuery'
-import { postsApi } from '../lib/queryClient'
-import PollDisplay from './Feed/PollDisplay'
+import { useAuth } from '../../contexts/AuthContext'
+import PollDisplay from './PollDisplay'
 
 function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVote, isInView = true }) {
   const { user } = useAuth()
-  const navigate = useNavigate()
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
   const [isMuted, setIsMuted] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -33,28 +28,6 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
   const videoRef = useRef(null)
   const progressInterval = useRef(null)
   const hideControlsTimeout = useRef(null)
-  const [interactionLoading, setInteractionLoading] = useState(false)
-
-  // TanStack Query mutations
-  const likeMutation = usePostLike(post.id, {
-    onSuccess: () => {
-      // Invalidate and refetch posts
-      postsApi.invalidateQueries(['posts'])
-    },
-    onError: (error) => {
-      console.error('Like mutation error:', error)
-    }
-  })
-
-  const saveMutation = usePostSave(post.id, {
-    onSuccess: () => {
-      // Invalidate and refetch posts
-      postsApi.invalidateQueries(['posts'])
-    },
-    onError: (error) => {
-      console.error('Save mutation error:', error)
-    }
-  })
 
   // Prepare media array: preview video (if exists) first, then media_urls
   let media = []
@@ -139,124 +112,6 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
     return () => clearTimeout(hideControlsTimeout.current)
   }, [showControls])
 
-  // Handle like with TanStack Query
-  const handleLike = () => {
-    if (!user) {
-      navigate('/?auth=signin')
-      return
-    }
-    
-    if (interactionLoading) return
-    
-    try {
-      setInteractionLoading(true)
-      
-      // Optimistic update
-      const newLikedState = !post.isLiked
-      post.isLiked = newLikedState
-      post.likeCount = newLikedState ? (post.likeCount || 0) + 1 : Math.max(0, (post.likeCount || 0) - 1)
-      
-      // Call the original onLike for backward compatibility
-      if (onLike) onLike()
-      
-      // Use the mutation
-      likeMutation.mutate({ 
-        userId: user.id, 
-        isLiked: !newLikedState // We pass the previous state since we already updated it
-      })
-      
-      // Direct database update as fallback
-      if (newLikedState) {
-        // Like post
-        supabase.from('post_likes').insert({
-          post_id: post.id,
-          user_id: user.id
-        }).then(({ error }) => {
-          if (error) console.error('Error liking post:', error)
-        })
-      } else {
-        // Unlike post
-        supabase.from('post_likes')
-          .delete()
-          .eq('post_id', post.id)
-          .eq('user_id', user.id)
-          .then(({ error }) => {
-            if (error) console.error('Error unliking post:', error)
-          })
-      }
-    } catch (err) {
-      console.error('Error toggling like:', err)
-    } finally {
-      setInteractionLoading(false)
-    }
-  }
-  
-  // Handle save with TanStack Query
-  const handleSave = () => {
-    if (!user) {
-      navigate('/?auth=signin')
-      return
-    }
-    
-    if (interactionLoading) return
-    
-    try {
-      setInteractionLoading(true)
-      
-      // Optimistic update
-      const newSavedState = !post.isSaved
-      post.isSaved = newSavedState
-      
-      // Call the original onSave for backward compatibility
-      if (onSave) onSave()
-      
-      // Use the mutation
-      saveMutation.mutate({ 
-        userId: user.id, 
-        isSaved: !newSavedState // We pass the previous state since we already updated it
-      })
-      
-      // Direct database update as fallback
-      if (newSavedState) {
-        // Save post
-        supabase.from('post_saves').insert({
-          post_id: post.id,
-          user_id: user.id
-        }).then(({ error }) => {
-          if (error) console.error('Error saving post:', error)
-        })
-      } else {
-        // Unsave post
-        supabase.from('post_saves')
-          .delete()
-          .eq('post_id', post.id)
-          .eq('user_id', user.id)
-          .then(({ error }) => {
-            if (error) console.error('Error unsaving post:', error)
-          })
-      }
-    } catch (err) {
-      console.error('Error toggling save:', err)
-    } finally {
-      setInteractionLoading(false)
-    }
-  }
-  
-  // Handle comment
-  const handleComment = () => {
-    if (!user) {
-      navigate('/?auth=signin')
-      return
-    }
-    
-    if (onComment) onComment()
-  }
-  
-  // Handle share
-  const handleShare = () => {
-    if (onShare) onShare()
-  }
-
   const togglePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -284,7 +139,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
   const handleDoubleClick = (e) => {
     e.stopPropagation()
     setIsDoubleTabbed(true)
-    handleLike()
+    onLike()
     setTimeout(() => setIsDoubleTabbed(false), 1000)
   }
 
@@ -504,8 +359,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
           <div className="flex items-center space-x-4">
             <motion.button
               whileTap={{ scale: 0.8 }}
-              onClick={handleLike}
-              disabled={interactionLoading}
+              onClick={onLike}
               className={`${
                 post.isLiked ? 'text-red-500' : 'text-gray-900'
               } hover:text-red-500 transition-colors`}
@@ -517,7 +371,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
             
             <motion.button
               whileTap={{ scale: 0.8 }}
-              onClick={handleComment}
+              onClick={onComment}
               className="text-gray-900 hover:text-gray-600 transition-colors"
             >
               <FiMessageCircle className="text-2xl" />
@@ -525,7 +379,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
             
             <motion.button
               whileTap={{ scale: 0.8 }}
-              onClick={handleShare}
+              onClick={onShare}
               className="text-gray-900 hover:text-gray-600 transition-colors"
             >
               <FiShare className="text-2xl" />
@@ -534,8 +388,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
           
           <motion.button
             whileTap={{ scale: 0.8 }}
-            onClick={handleSave}
-            disabled={interactionLoading}
+            onClick={onSave}
             className={`${
               post.isSaved ? 'text-gray-900 fill-current' : 'text-gray-900'
             } hover:text-gray-600 transition-colors`}
@@ -581,7 +434,7 @@ function PostCard({ post, onLike, onSave, onComment, onShare, onClick, onPollVot
         {/* View comments */}
         {(post.commentCount ?? post.comment_count ?? 0) > 0 && (
           <button 
-            onClick={handleComment}
+            onClick={onComment}
             className="text-sm text-gray-500 hover:text-gray-700 transition-colors mb-2 block"
           >
             View all {(post.commentCount ?? post.comment_count)} comments
