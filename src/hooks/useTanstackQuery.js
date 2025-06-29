@@ -7,6 +7,7 @@ import { queryKeys } from '../lib/queryClient'
 export const usePostsFeed = (page = 0, options = {}) => {
   const { 
     postsApi,
+    userId,
     getNextPageParam,
     onSuccess,
     onError,
@@ -15,8 +16,8 @@ export const usePostsFeed = (page = 0, options = {}) => {
   } = options
   
   return useInfiniteQuery({
-    queryKey: queryKeys.posts.feed(page),
-    queryFn: ({ pageParam = 0 }) => postsApi.getFeed(pageParam),
+    queryKey: [...queryKeys.posts.feed(page), userId],
+    queryFn: ({ pageParam = 0 }) => postsApi.getFeed(pageParam, 10, userId),
     getNextPageParam: (lastPage, allPages) => {
       return lastPage.length === 10 ? allPages.length : undefined
     },
@@ -33,6 +34,7 @@ export const usePostsFeed = (page = 0, options = {}) => {
 export const usePost = (postId, options = {}) => {
   const { 
     postsApi,
+    userId,
     onSuccess,
     onError,
     enabled = !!postId,
@@ -40,8 +42,8 @@ export const usePost = (postId, options = {}) => {
   } = options
   
   return useQuery({
-    queryKey: queryKeys.posts.detail(postId),
-    queryFn: () => postsApi.getPostById(postId),
+    queryKey: [...queryKeys.posts.detail(postId), userId],
+    queryFn: () => postsApi.getPostById(postId, userId),
     onSuccess,
     onError,
     enabled,
@@ -274,9 +276,11 @@ export const usePostLike = (postId, options = {}) => {
     onMutate: async ({ userId, isLiked }) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.posts.detail(postId) })
+      await queryClient.cancelQueries({ queryKey: queryKeys.posts.feed() })
       
       // Snapshot the previous value
       const previousPost = queryClient.getQueryData(queryKeys.posts.detail(postId))
+      const previousFeedData = queryClient.getQueryData(queryKeys.posts.feed())
       
       // Optimistically update the post
       queryClient.setQueryData(
@@ -292,25 +296,30 @@ export const usePostLike = (postId, options = {}) => {
         }
       )
       
-      // Also update in the feed if present
-      queryClient.setQueriesData(
-        { queryKey: queryKeys.posts.all },
+      // Update in the infinite query feed if present
+      queryClient.setQueryData(
+        queryKeys.posts.feed(),
         (oldData) => {
-          if (!oldData) return oldData
-          return oldData.map(post => 
-            post.id === postId 
-              ? {
-                  ...post,
-                  like_count: isLiked 
-                    ? Math.max(0, (post.like_count || 0) - 1)
-                    : (post.like_count || 0) + 1
-                }
-              : post
-          )
+          if (!oldData?.pages) return oldData
+          return {
+            ...oldData,
+            pages: oldData.pages.map(page => 
+              page.map(post => 
+                post.id === postId 
+                  ? {
+                      ...post,
+                      like_count: isLiked 
+                        ? Math.max(0, (post.like_count || 0) - 1)
+                        : (post.like_count || 0) + 1
+                    }
+                  : post
+              )
+            )
+          }
         }
       )
       
-      return { previousPost }
+      return { previousPost, previousFeedData }
     },
     onError: (err, { isLiked }, context) => {
       // Revert to the previous value if there was an error
@@ -321,6 +330,13 @@ export const usePostLike = (postId, options = {}) => {
         )
       }
       
+      if (context?.previousFeedData) {
+        queryClient.setQueryData(
+          queryKeys.posts.feed(),
+          context.previousFeedData
+        )
+      }
+      
       if (onError) {
         onError(err, { isLiked }, context)
       }
@@ -328,6 +344,7 @@ export const usePostLike = (postId, options = {}) => {
     onSuccess: (_, { userId, isLiked }, context) => {
       // Invalidate related queries to ensure data is fresh
       queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(postId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts.feed() })
       
       if (onSuccess) {
         onSuccess(_, { userId, isLiked }, context)
@@ -355,17 +372,90 @@ export const usePostSave = (postId, options = {}) => {
       isSaved 
         ? postsApi.unsavePost(postId, userId) 
         : postsApi.savePost(postId, userId),
+    onMutate: async ({ userId, isSaved }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.posts.detail(postId) })
+      await queryClient.cancelQueries({ queryKey: queryKeys.posts.feed() })
+      await queryClient.cancelQueries({ queryKey: queryKeys.user.saved(userId) })
+      
+      // Snapshot the previous values
+      const previousPost = queryClient.getQueryData(queryKeys.posts.detail(postId))
+      const previousFeedData = queryClient.getQueryData(queryKeys.posts.feed())
+      const previousSavedData = queryClient.getQueryData(queryKeys.user.saved(userId))
+      
+      // Optimistically update the post detail
+      queryClient.setQueryData(
+        queryKeys.posts.detail(postId),
+        (oldPost) => {
+          if (!oldPost) return oldPost
+          return {
+            ...oldPost,
+            isSaved: !isSaved
+          }
+        }
+      )
+      
+      // Update in the infinite query feed if present
+      queryClient.setQueryData(
+        queryKeys.posts.feed(),
+        (oldData) => {
+          if (!oldData?.pages) return oldData
+          return {
+            ...oldData,
+            pages: oldData.pages.map(page => 
+              page.map(post => 
+                post.id === postId 
+                  ? { ...post, isSaved: !isSaved }
+                  : post
+              )
+            )
+          }
+        }
+      )
+      
+      return { previousPost, previousFeedData, previousSavedData }
+    },
+    onError: (err, { userId, isSaved }, context) => {
+      // Revert optimistic updates on error
+      if (context?.previousPost) {
+        queryClient.setQueryData(
+          queryKeys.posts.detail(postId),
+          context.previousPost
+        )
+      }
+      
+      if (context?.previousFeedData) {
+        queryClient.setQueryData(
+          queryKeys.posts.feed(),
+          context.previousFeedData
+        )
+      }
+      
+      if (context?.previousSavedData) {
+        queryClient.setQueryData(
+          queryKeys.user.saved(userId),
+          context.previousSavedData
+        )
+      }
+      
+      if (onError) {
+        onError(err, { userId, isSaved }, context)
+      }
+    },
     onSuccess: (_, { userId, isSaved }, context) => {
       // Invalidate user's saved posts
       if (userId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.user.saved(userId) })
       }
       
+      // Invalidate related queries to ensure data is fresh
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(postId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts.feed() })
+      
       if (onSuccess) {
         onSuccess(_, { userId, isSaved }, context)
       }
     },
-    onError,
     ...mutationOptions
   })
 }

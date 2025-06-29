@@ -62,9 +62,10 @@ export const queryKeys = {
  * API functions for posts
  */
 export const postsApi = {
-  getFeed: async (page = 0, limit = 10) => {
+  getFeed: async (page = 0, limit = 10, userId = null) => {
     console.log('Fetching posts feed for page:', page, 'limit:', limit)
-    const { data, error } = await supabase
+    
+    let query = supabase
       .from('posts')
       .select(`
         id,
@@ -91,11 +92,25 @@ export const postsApi = {
           avatar_url,
           is_verified,
           user_type
+        ),
+        post_likes!left (
+          user_id
+        ),
+        post_saves!left (
+          user_id
         )
       `)
       .eq('status', 'published')
       .order('created_at', { ascending: false })
       .range(page * limit, (page + 1) * limit - 1)
+    
+    if (userId) {
+      query = query
+        .eq('post_likes.user_id', userId)
+        .eq('post_saves.user_id', userId)
+    }
+    
+    const { data, error } = await query
     
     if (error) {
       console.error('Error fetching posts feed:', error)
@@ -103,11 +118,20 @@ export const postsApi = {
     }
     
     console.log('Posts feed data:', data)
-    return data
+    
+    // Map the data to include isLiked and isSaved flags
+    return (data || []).map(post => ({
+      ...post,
+      isLiked: userId ? post.post_likes?.some(like => like.user_id === userId) : false,
+      isSaved: userId ? post.post_saves?.some(save => save.user_id === userId) : false,
+      // Remove the raw arrays to keep the response clean
+      post_likes: undefined,
+      post_saves: undefined
+    }))
   },
   
-  getPostById: async (postId) => {
-    const { data, error } = await supabase
+  getPostById: async (postId, userId = null) => {
+    let query = supabase
       .from('posts')
       .select(`
         *,
@@ -118,13 +142,35 @@ export const postsApi = {
           avatar_url,
           is_verified,
           user_type
+        ),
+        post_likes!left (
+          user_id
+        ),
+        post_saves!left (
+          user_id
         )
       `)
       .eq('id', postId)
-      .single()
+    
+    if (userId) {
+      query = query
+        .eq('post_likes.user_id', userId)
+        .eq('post_saves.user_id', userId)
+    }
+    
+    const { data, error } = await query.single()
     
     if (error) throw error
-    return data
+    
+    // Map the data to include isLiked and isSaved flags
+    return {
+      ...data,
+      isLiked: userId ? data.post_likes?.some(like => like.user_id === userId) : false,
+      isSaved: userId ? data.post_saves?.some(save => save.user_id === userId) : false,
+      // Remove the raw arrays to keep the response clean
+      post_likes: undefined,
+      post_saves: undefined
+    }
   },
   
   getUserPosts: async (userId) => {
