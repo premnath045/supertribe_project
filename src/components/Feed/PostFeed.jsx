@@ -3,10 +3,11 @@ import { motion } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import PostCard from '../PostCard'
 import LoadingSpinner from '../UI/LoadingSpinner'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '../../contexts/AuthContext' 
 import { useNavigate } from 'react-router-dom'
 import { usePostsFeed } from '../../hooks/useTanstackQuery'
 import { postsApi } from '../../lib/queryClient'
+import { supabase } from '../../lib/supabase'
 
 function PostFeed({ onPostClick, onShareClick }) {
   const navigate = useNavigate()
@@ -37,6 +38,44 @@ function PostFeed({ onPostClick, onShareClick }) {
   // Intersection Observer for tracking visible posts
   const postRefs = useRef({})
   const observer = useRef(null)
+
+  // Check post interactions (likes, saves)
+  const checkPostInteractions = async (posts) => {
+    if (!user || !posts || posts.length === 0) return posts
+    
+    try {
+      // Get all post IDs
+      const postIds = posts.map(post => post.id)
+      
+      // Check likes
+      const { data: likes } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', user.id)
+        .in('post_id', postIds)
+      
+      // Check saves
+      const { data: saves } = await supabase
+        .from('post_saves')
+        .select('post_id')
+        .eq('user_id', user.id)
+        .in('post_id', postIds)
+      
+      // Create lookup maps
+      const likedPostsMap = new Map(likes?.map(like => [like.post_id, true]) || [])
+      const savedPostsMap = new Map(saves?.map(save => [save.post_id, true]) || [])
+      
+      // Update posts with interaction data
+      return posts.map(post => ({
+        ...post,
+        isLiked: likedPostsMap.has(post.id),
+        isSaved: savedPostsMap.has(post.id)
+      }))
+    } catch (error) {
+      console.error('Error checking post interactions:', error)
+      return posts
+    }
+  }
 
   useEffect(() => {
     // Create intersection observer for video auto-play
@@ -71,6 +110,24 @@ function PostFeed({ onPostClick, onShareClick }) {
       }
     }
   }, [])
+
+  // Check interactions when posts change
+  useEffect(() => {
+    if (posts?.pages?.length > 0 && user) {
+      const allPosts = posts.pages.flatMap(page => page)
+      checkPostInteractions(allPosts).then(updatedPosts => {
+        // We can't directly update the posts state from react-query
+        // But we can update the post objects since they're passed by reference
+        updatedPosts.forEach(updatedPost => {
+          const originalPost = allPosts.find(p => p.id === updatedPost.id)
+          if (originalPost) {
+            originalPost.isLiked = updatedPost.isLiked
+            originalPost.isSaved = updatedPost.isSaved
+          }
+        })
+      })
+    }
+  }, [posts?.pages, user])
 
   // Function to register post refs with observer
   const registerPostRef = (postId, element) => {
